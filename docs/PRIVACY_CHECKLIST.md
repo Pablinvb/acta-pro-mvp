@@ -17,6 +17,7 @@ Se trata de reuniones escolares en las que se habla de **menores de edad**. Esta
 | Borrador y acta aprobada | Anthropic + edición humana | `minutes` | Ídem |
 | Firma manuscrita digitalizada | Canvas | `signatures` (PNG en data URL) | Ídem |
 | PDF firmado | Servidor | Bucket privado `acta-documents` | Ídem |
+| Acuerdos en seguimiento | Acta aprobada | `commitment_tracking` | Ídem |
 | Rastro de auditoría | Aplicación | `audit_logs` | Ídem |
 
 **No se tratan** datos de salud, diagnósticos ni categorías especiales. El prompt del sistema prohíbe explícitamente diagnosticar.
@@ -86,7 +87,8 @@ Se trata de reuniones escolares en las que se habla de **menores de edad**. Esta
 - [x] Cada tema, hecho, acuerdo, compromiso y seguimiento enlaza con sus segmentos de origen.
 - [x] Las contradicciones se registran sin decidir quién tiene razón.
 - [x] Las sugerencias de lenguaje objetivo se presentan como propuestas; aceptarlas **no** modifica la transcripción.
-- [x] Nunca se afirma que el sistema reconoce voces biométricamente.
+- [x] Nunca se afirma que el sistema reconoce voces biométricamente. La forma de onda por hablante es una huella visual derivada del texto, no la onda del audio.
+- [x] El tablero de seguimiento no marca nada como cumplido por su cuenta: muestra el vencimiento y espera la decisión de la persona docente.
 - [x] Toda simulación aparece rotulada: banda de modo demostración, insignias por integración y aviso en el borrador.
 
 ---

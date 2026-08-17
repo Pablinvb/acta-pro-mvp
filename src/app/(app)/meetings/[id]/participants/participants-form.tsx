@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Checkbox, Field, Input } from "@/components/ui/field";
 import { confirmParticipantsAction, type ActionState } from "@/app/(app)/meetings/actions";
 
 interface Option {
@@ -50,21 +50,19 @@ export function ParticipantsForm({
         {options.map((option) => (
           <label
             key={option.key}
-            className="flex cursor-pointer items-start gap-3 rounded-card border border-line px-4 py-3 hover:bg-navy-50/40 has-checked:border-navy-100 has-checked:bg-navy-50/60"
+            className="flex cursor-pointer items-start gap-3 rounded-card border border-line bg-surface-inset/50 px-4 py-3 transition-colors hover:border-brand-500/40 has-checked:border-brand-500/50 has-checked:bg-brand-soft"
           >
-            <input
-              type="checkbox"
+            <Checkbox
               name="participant"
               value={option.key}
               defaultChecked={isChecked(option)}
               disabled={option.required}
-              className="mt-0.5 size-4 accent-[#0b1f66]"
             />
             <span className="min-w-0">
               <span className="block text-sm font-medium text-ink">{option.name}</span>
               <span className="block text-xs text-ink-muted">{option.subtitle}</span>
               {option.required ? (
-                <span className="mt-1 block text-xs font-medium text-navy-600">
+                <span className="mt-1 block text-xs font-medium text-brand-300">
                   Siempre presente: es quien convoca y firma.
                 </span>
               ) : null}
@@ -113,7 +111,10 @@ export function ParticipantsForm({
       </fieldset>
 
       {state.error ? (
-        <p role="alert" className="rounded-lg bg-danger-50 px-3 py-2 text-sm font-medium text-danger-600">
+        <p
+          role="alert"
+          className="rounded-xl border border-danger-500/35 bg-danger-soft px-3 py-2 text-sm font-medium text-danger-400"
+        >
           {state.error}
         </p>
       ) : null}

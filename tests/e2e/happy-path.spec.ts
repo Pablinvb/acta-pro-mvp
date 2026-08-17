@@ -24,7 +24,7 @@ async function login(page: Page) {
   await page.getByLabel("Correo institucional").fill(TEACHER_EMAIL);
   await page.getByLabel("Contraseña").fill(TEACHER_PASSWORD);
   await page.getByRole("button", { name: "Ingresar" }).click();
-  await expect(page.getByRole("heading", { name: "Sus reuniones y actas" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /De una reunión a una evidencia institucional/ })).toBeVisible();
 }
 
 /** Dibuja un trazo continuo dentro de un área de firma. */
@@ -105,8 +105,8 @@ test("flujo completo: de la reunión al acta firmada y archivada", async ({ page
     await expect(page.getByText(/no consta/i).first()).toBeVisible();
   });
 
-  await test.step("aceptar la sugerencia de lenguaje objetivo", async () => {
-    const accept = page.getByRole("button", { name: "Aceptar sugerencia" }).first();
+  await test.step("aprobar la sugerencia de lenguaje objetivo", async () => {
+    const accept = page.getByRole("button", { name: "Aprobar sugerencia" }).first();
     await expect(accept).toBeVisible();
     await accept.click();
     await expect(page.getByRole("button", { name: "Quitar del acta" }).first()).toBeVisible();
@@ -144,9 +144,21 @@ test("flujo completo: de la reunión al acta firmada y archivada", async ({ page
     await expect(page.getByText(/ACTA-\d{4}-[0-9A-F]{8}-v1/).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Descargar PDF" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Repositorio", exact: true }).first().click();
+    await page.getByRole("link", { name: "Actas", exact: true }).first().click();
     await expect(page.getByRole("heading", { name: "Repositorio de actas" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Juan Pérez López" })).toBeVisible();
+  });
+
+  await test.step("los acuerdos aprobados pasan al tablero de seguimiento", async () => {
+    await page.getByRole("link", { name: "Seguimiento", exact: true }).first().click();
+    await expect(page.getByRole("heading", { name: "Seguimiento de acuerdos" })).toBeVisible();
+
+    // Los acuerdos provienen del acta aprobada y empiezan como pendientes.
+    const chip = page.getByRole("button", { name: /Estado actual: Pendiente/ }).first();
+    await expect(chip).toBeVisible();
+
+    await chip.click();
+    await expect(page.getByRole("button", { name: /Estado actual: En progreso/ }).first()).toBeVisible();
   });
 
   await test.step("la auditoría conserva el recorrido completo", async () => {

@@ -108,6 +108,7 @@ export function SignaturePad({
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-ink">{label}</p>
+      {/* El lienzo es blanco a propósito: la firma se imprime sobre el PDF. */}
       <canvas
         ref={canvasRef}
         role="img"
@@ -116,7 +117,7 @@ export function SignaturePad({
         onPointerMove={move}
         onPointerUp={end}
         onPointerLeave={end}
-        className="h-40 w-full touch-none rounded-card border border-line-strong bg-white"
+        className="h-40 w-full cursor-crosshair touch-none rounded-card border-2 border-dashed border-line-strong bg-white transition-colors hover:border-brand-500/60"
       />
       <div className="flex items-center justify-between">
         <p className="text-xs text-ink-subtle">Firme con el dedo, el lápiz digital o el ratón.</p>

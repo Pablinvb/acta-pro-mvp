@@ -141,6 +141,35 @@ export interface DocumentRecord {
   created_at: string;
 }
 
+export type CommitmentStatus = "pending" | "in_progress" | "completed";
+
+/**
+ * Acuerdo o compromiso extraído de un acta aprobada, con su estado de avance.
+ * Se crea al aprobar el acta y solo la persona docente cambia su estado: el
+ * sistema no marca nada como cumplido por su cuenta.
+ */
+export interface CommitmentTracking {
+  id: string;
+  institution_id: string;
+  meeting_id: string;
+  minutes_id: string;
+  kind: "agreement" | "commitment";
+  item_index: number;
+  description: string;
+  responsible: string | null;
+  due_date: string | null;
+  status: CommitmentStatus;
+  completed_at: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface CommitmentWithContext {
+  commitment: CommitmentTracking;
+  meeting: Meeting;
+  student: Student;
+}
+
 export type AuditAction =
   | "meeting.created"
   | "meeting.participants_confirmed"
@@ -153,6 +182,7 @@ export type AuditAction =
   | "minutes.generated"
   | "minutes.edited"
   | "minutes.approved"
+  | "commitment.status_changed"
   | "minutes.signed"
   | "document.generated"
   | "document.downloaded"

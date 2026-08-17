@@ -7,6 +7,8 @@ import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/field";
+import { ShieldCheckIcon } from "@/components/icons";
 import { recordConsentAction, type ActionState } from "@/app/(app)/meetings/actions";
 import { CONSENT_SECTIONS, CONSENT_SUMMARY, CONSENT_TEXT_VERSION, DRAFT_LEGAL_NOTE } from "@/lib/consent";
 import type { MeetingParticipant } from "@/lib/types";
@@ -56,8 +58,9 @@ export function ConsentPanel({
               </div>
             ))}
           </dl>
-          <p className="rounded-lg bg-canvas px-3 py-2 text-xs text-ink-subtle">
-            {DRAFT_LEGAL_NOTE} Versión del texto: <code className="font-mono">{CONSENT_TEXT_VERSION}</code>
+          <p className="rounded-xl border border-line bg-surface-inset/70 px-3 py-2 text-xs text-ink-subtle">
+            {DRAFT_LEGAL_NOTE} Versión del texto:{" "}
+            <code className="font-mono text-brand-300">{CONSENT_TEXT_VERSION}</code>
           </p>
         </CardBody>
       </Card>
@@ -78,17 +81,16 @@ export function ConsentPanel({
               {participants.map((participant) => (
                 <label
                   key={participant.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-card border border-line px-4 py-3 has-checked:border-verified-600/30 has-checked:bg-verified-50"
+                  className="flex cursor-pointer items-start gap-3 rounded-card border border-line bg-surface-inset/50 px-4 py-3 transition-colors has-checked:border-verified-500/40 has-checked:bg-verified-soft"
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     name={`consent_${participant.id}`}
                     value="granted"
                     checked={Boolean(decisions[participant.id])}
                     onChange={(event) =>
                       setDecisions((current) => ({ ...current, [participant.id]: event.target.checked }))
                     }
-                    className="mt-0.5 size-4 accent-[#0f7b4f]"
+                    className="accent-[#22c55e]"
                   />
                   <span>
                     <span className="block text-sm font-medium text-ink">{participant.display_name}</span>
@@ -101,12 +103,7 @@ export function ConsentPanel({
             </fieldset>
 
             <label className="flex cursor-pointer items-start gap-3 text-sm text-ink-muted">
-              <input
-                type="checkbox"
-                checked={readNotice}
-                onChange={(event) => setReadNotice(event.target.checked)}
-                className="mt-0.5 size-4 accent-[#0b1f66]"
-              />
+              <Checkbox checked={readNotice} onChange={(event) => setReadNotice(event.target.checked)} />
               Confirmo que leí el aviso en voz alta y que todas las personas presentes pudieron preguntar.
             </label>
 
@@ -118,12 +115,21 @@ export function ConsentPanel({
             ) : null}
 
             {state.error ? (
-              <p role="alert" className="rounded-lg bg-danger-50 px-3 py-2 text-sm font-medium text-danger-600">
+              <p
+                role="alert"
+                className="rounded-xl border border-danger-500/35 bg-danger-soft px-3 py-2 text-sm font-medium text-danger-400"
+              >
                 {state.error}
               </p>
             ) : null}
 
             <SubmitButton disabled={!allGranted || !readNotice} />
+
+            <p className="flex items-start gap-2 text-xs leading-relaxed text-ink-subtle">
+              <ShieldCheckIcon className="mt-px size-4 shrink-0 text-brand-400" />
+              El micrófono permanece bloqueado hasta que este registro quede guardado, tanto en la interfaz como en
+              el servidor.
+            </p>
           </form>
         </CardBody>
       </Card>

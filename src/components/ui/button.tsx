@@ -3,26 +3,27 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "ai";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "verified";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-navy-600 text-white hover:bg-navy-700 disabled:bg-navy-600/40",
+  primary:
+    "bg-brand-500 text-white shadow-[0_10px_30px_-12px_rgba(31,111,235,0.9)] hover:bg-brand-400 disabled:bg-brand-700/50 disabled:text-white/50 disabled:shadow-none",
   secondary:
-    "bg-surface text-navy-600 border border-line-strong hover:bg-navy-50 disabled:text-ink-subtle disabled:hover:bg-surface",
-  ghost: "bg-transparent text-ink-muted hover:bg-navy-50 hover:text-navy-600",
-  danger: "bg-danger-600 text-white hover:bg-danger-600/90",
-  ai: "bg-violet-500 text-white hover:bg-violet-600 disabled:bg-violet-500/40",
+    "border border-line-strong bg-surface-raised/70 text-ink hover:border-brand-500/60 hover:bg-surface-raised disabled:text-ink-subtle disabled:hover:border-line-strong",
+  ghost: "text-ink-muted hover:bg-surface-raised/70 hover:text-ink disabled:text-ink-subtle",
+  danger: "bg-danger-500 text-white hover:bg-danger-400 disabled:bg-danger-500/40",
+  verified: "bg-verified-500 text-canvas-deep hover:bg-verified-400 disabled:bg-verified-500/40",
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "h-9 px-3 text-sm",
-  md: "h-11 px-4 text-sm",
-  lg: "h-13 px-6 text-base",
+  sm: "h-9 gap-1.5 px-3 text-sm",
+  md: "h-11 gap-2 px-4 text-sm",
+  lg: "h-13 gap-2.5 px-6 text-base",
 };
 
 const BASE =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { SourceSegments, type SourceSegment } from "@/components/source-segments";
+import { ArrowDownIcon, SparkIcon } from "@/components/icons";
+import { cn } from "@/lib/utils";
 import type { Minutes } from "@/lib/schemas/minutes";
 import type { MinutesStatus } from "@/lib/types";
 
@@ -345,39 +347,67 @@ export function MinutesEditor({
 
       <Card>
         <CardHeader>
-          <CardTitle>Sugerencias de lenguaje objetivo</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <SparkIcon className="size-4.5 text-brand-400" />
+            Revisión asistida: IA que propone, humano decide
+          </CardTitle>
           <CardDescription>
-            Estas expresiones califican o atribuyen intenciones. Aceptar una sugerencia la incorpora al acta como
-            precisión de lenguaje; la transcripción original no se modifica en ningún caso.
+            Estas expresiones califican a una persona o atribuyen intenciones. Aceptar una sugerencia la incorpora
+            al acta como precisión de lenguaje; la transcripción original no se modifica en ningún caso.
           </CardDescription>
         </CardHeader>
-        <CardBody className="space-y-4">
+        <CardBody className="space-y-5">
           {draft.language_flags.length === 0 ? (
             <p className="text-sm text-ink-muted">No se detectaron expresiones que requieran ajuste.</p>
           ) : (
             draft.language_flags.map((flag, index) => {
               const accepted = acceptedFlags.includes(index);
               return (
-                <div
+                <article
                   key={index}
-                  className={`rounded-card border px-4 py-3 ${
-                    accepted ? "border-verified-600/30 bg-verified-50" : "border-review-600/25 bg-review-50"
-                  }`}
+                  className={cn(
+                    "rounded-card border transition-colors",
+                    accepted ? "border-verified-500/40 bg-verified-soft/50" : "border-line bg-surface-inset/50",
+                  )}
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
-                    Expresión en la transcripción
-                  </p>
-                  <p className="mt-1 text-sm italic leading-relaxed text-ink">“{flag.original_fragment}”</p>
+                  <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+                    <span className="flex items-center gap-2 text-xs font-semibold text-review-400">
+                      <span aria-hidden className="size-2 rounded-full bg-review-500" />
+                      Detectado: lenguaje subjetivo
+                    </span>
+                    <Badge tone={accepted ? "verified" : "review"}>
+                      {accepted ? "Incorporada al acta" : "En revisión"}
+                    </Badge>
+                  </header>
 
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-subtle">Motivo</p>
-                  <p className="mt-1 text-sm leading-relaxed text-ink-muted">{flag.reason}</p>
+                  <div className="space-y-3 px-4 py-4">
+                    <blockquote className="rounded-xl border border-review-500/25 bg-review-soft/40 px-3 py-2.5">
+                      <p className="text-sm italic leading-relaxed text-ink">“{flag.original_fragment}”</p>
+                    </blockquote>
 
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
-                    Redacción objetiva sugerida
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-ink">{flag.objective_suggestion}</p>
+                    <div className="flex justify-center" aria-hidden>
+                      <ArrowDownIcon className="size-5 text-brand-400" />
+                    </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div>
+                      <p className="flex items-center gap-2 text-xs font-semibold text-verified-400">
+                        <span aria-hidden className="size-2 rounded-full bg-verified-500" />
+                        Sugerencia de redacción institucional
+                      </p>
+                      <p className="mt-1.5 rounded-xl border border-verified-500/25 bg-verified-soft/40 px-3 py-2.5 text-sm leading-relaxed text-ink">
+                        {flag.objective_suggestion}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Justificación</p>
+                      <p className="mt-1 text-sm leading-relaxed text-ink-muted">{flag.reason}</p>
+                    </div>
+
+                    <SourceSegments ids={flag.source_segment_ids} segments={segmentMap} />
+                  </div>
+
+                  <footer className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3">
                     <Button
                       type="button"
                       size="sm"
@@ -385,11 +415,14 @@ export function MinutesEditor({
                       disabled={!editable}
                       onClick={() => toggleFlag(index)}
                     >
-                      {accepted ? "Quitar del acta" : "Aceptar sugerencia"}
+                      {accepted ? "Quitar del acta" : "Aprobar sugerencia"}
                     </Button>
-                    <SourceSegments ids={flag.source_segment_ids} segments={segmentMap} />
-                  </div>
-                </div>
+                    <p className="text-xs text-ink-subtle">
+                      Una sugerencia aceptada se registra como precisión de lenguaje, no como algo dicho en la
+                      reunión.
+                    </p>
+                  </footer>
+                </article>
               );
             })
           )}
@@ -420,7 +453,7 @@ export function MinutesEditor({
       {message ? <Alert tone="verified">{message}</Alert> : null}
 
       {editable ? (
-        <div className="sticky bottom-4 flex flex-wrap gap-3 rounded-card border border-line bg-surface/95 px-4 py-3 shadow-[0_4px_16px_rgba(16,24,40,0.08)] backdrop-blur">
+        <div className="glass sticky bottom-4 z-10 flex flex-wrap gap-3 rounded-card border border-brand-500/30 px-4 py-3 shadow-[0_18px_50px_-20px_rgba(3,7,19,0.95)]">
           <Button variant="secondary" onClick={save} disabled={saving || approving}>
             {saving ? "Guardando…" : "Guardar cambios"}
           </Button>

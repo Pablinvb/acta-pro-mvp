@@ -83,7 +83,7 @@ Pulse **Aprobar acta y continuar a firmas**.
 
 ---
 
-## 3:15 — 3:45 · Firmar y archivar
+## 3:15 — 3:35 · Firmar y archivar
 
 Firme en los dos recuadros, marque las aceptaciones → **Firmar y generar PDF**.
 
@@ -99,7 +99,19 @@ Abra **Ver en el repositorio** → señale el historial de auditoría.
 
 ---
 
-## 3:45 — 4:00 · Límites e impacto
+## 3:35 — 3:50 · El seguimiento que hoy se pierde
+
+Abra **Seguimiento** en la barra lateral.
+
+> «Y aquí está lo que normalmente se pierde: los acuerdos que acabamos de aprobar ya están en el tablero, con su responsable y su fecha. Un clic cambia el estado.»
+
+Pulse un compromiso para llevarlo a *En progreso*.
+
+> «La tutoría sin fecha aparece aparte, en “sin fecha”. No le inventamos un plazo.»
+
+---
+
+## 3:50 — 4:00 · Límites e impacto
 
 > «Qué es honesto decir: Runachay aparece como *No disponible*, porque no hay API oficial y no vamos a fingir una integración. El audio no se guarda nunca. Y esto no da validez legal automática: da evidencia trazable, que es lo que hoy no existe.»
 

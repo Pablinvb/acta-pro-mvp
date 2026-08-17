@@ -4,9 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Badge, LiveBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MicIcon } from "@/components/icons";
+import { LiveWaveform } from "@/components/waveform";
+import { speakerColor } from "@/lib/speakers";
 import { LiveTranscriptService, type LiveState } from "@/lib/deepgram/live-transcript-service";
 import type { NormalizedSegment } from "@/lib/deepgram/segments";
 import { formatClock } from "@/lib/utils";
@@ -47,6 +50,7 @@ export function Recorder({
   const [liveDetail, setLiveDetail] = useState<string | null>(null);
   const [interim, setInterim] = useState("");
   const [segments, setSegments] = useState<NormalizedSegment[]>([]);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -66,6 +70,7 @@ export function Recorder({
     streamRef.current?.getTracks().forEach((track) => track.stop());
     recorderRef.current = null;
     streamRef.current = null;
+    setStream(null);
   }, []);
 
   useEffect(
@@ -98,10 +103,11 @@ export function Recorder({
     try {
       await callApi(`/api/meetings/${meetingId}/recording`, { action: "start" });
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const media = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
-      streamRef.current = stream;
+      streamRef.current = media;
+      setStream(media);
 
       const mimeType = pickMimeType();
       if (!mimeType) throw new Error("Este navegador no permite grabar en WebM/Opus.");
@@ -122,14 +128,12 @@ export function Recorder({
           // La grabación continúa: al finalizar se recupera desde el audio completo.
           serviceRef.current = null;
           setLiveState("error");
-          setLiveDetail(
-            connectionError instanceof Error ? connectionError.message : "Fallo de conexión.",
-          );
+          setLiveDetail(connectionError instanceof Error ? connectionError.message : "Fallo de conexión.");
         }
       }
 
       chunksRef.current = [];
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = new MediaRecorder(media, { mimeType });
       recorder.ondataavailable = (event) => {
         if (event.data.size === 0) return;
         // Copia local: sostiene la recuperación si el streaming falla.
@@ -250,112 +254,132 @@ export function Recorder({
       router.refresh();
     } catch (demoError) {
       setPhase("idle");
-      setError(demoError instanceof Error ? demoError.message : "No se pudo cargar la transcripción de demostración.");
+      setError(
+        demoError instanceof Error ? demoError.message : "No se pudo cargar la transcripción de demostración.",
+      );
     }
   }
 
   const recording = phase === "recording" || phase === "paused";
+  const speakerOrder = [...new Set(segments.map((segment) => segment.speaker))];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Grabación</CardTitle>
-          <CardDescription>
-            El audio se procesa para transcribirlo y no se almacena en el servidor.
-          </CardDescription>
-        </CardHeader>
-        <CardBody className="space-y-5">
-          <div className="flex items-center gap-3">
-            <span
-              aria-hidden
-              className={`size-3 rounded-full ${
-                phase === "recording" ? "animate-pulse bg-danger-600" : "bg-line-strong"
-              }`}
-            />
+    <div className="space-y-6">
+      {/* Consola de grabación: cronómetro, onda en vivo y controles. */}
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-4 border-b border-line bg-surface-inset/60 px-5 py-4">
+          <span
+            aria-hidden
+            className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${
+              phase === "recording" ? "bg-danger-soft text-danger-400" : "bg-brand-soft text-brand-300"
+            }`}
+          >
+            <MicIcon />
+          </span>
+
+          <div>
             <p className="font-mono text-3xl font-semibold tabular-nums text-ink" aria-live="polite">
               {formatClock(seconds)}
             </p>
+            <p className="text-xs text-ink-subtle">
+              {phase === "recording"
+                ? "Grabando"
+                : phase === "paused"
+                  ? "En pausa · la conexión se mantiene viva"
+                  : phase === "processing"
+                    ? "Procesando transcripción"
+                    : "Listo para grabar"}
+            </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {phase === "idle" ? (
-              <Button onClick={start} size="lg">
-                Iniciar grabación
-              </Button>
-            ) : null}
-            {phase === "starting" ? (
-              <Button size="lg" disabled>
-                Preparando…
-              </Button>
-            ) : null}
-            {phase === "recording" ? (
-              <>
-                <Button onClick={pause} variant="secondary" size="lg">
-                  Pausar
-                </Button>
-                <Button onClick={finish} size="lg">
-                  Finalizar
-                </Button>
-              </>
-            ) : null}
-            {phase === "paused" ? (
-              <>
-                <Button onClick={resume} size="lg">
-                  Reanudar
-                </Button>
-                <Button onClick={finish} variant="secondary" size="lg">
-                  Finalizar
-                </Button>
-              </>
-            ) : null}
-            {phase === "processing" ? (
-              <Button size="lg" disabled>
-                Procesando transcripción…
-              </Button>
-            ) : null}
-          </div>
-
-          {liveTranscriptionAvailable ? (
-            <p className="text-sm">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {phase === "recording" ? <LiveBadge /> : null}
+            {liveTranscriptionAvailable ? (
               <Badge tone={liveState === "open" ? "verified" : liveState === "error" ? "review" : "info"}>
                 {STATE_LABEL[liveState]}
               </Badge>
-            </p>
-          ) : (
-            <Alert tone="review" title="Transcripción en vivo no disponible">
-              Deepgram no está configurado. Puede grabar igualmente: al finalizar se usará la transcripción de
-              demostración, claramente rotulada como simulación.
-            </Alert>
-          )}
+            ) : (
+              <Badge tone="review">Transcripción simulada</Badge>
+            )}
+          </div>
+        </div>
 
-          {liveDetail ? (
-            <Alert tone="review">
-              {liveDetail} La grabación continúa y se transcribirá desde el audio completo al finalizar.
-            </Alert>
+        <div className="px-5 py-4">
+          <LiveWaveform stream={stream} active={phase === "recording"} />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-4">
+          {phase === "idle" ? (
+            <Button onClick={start} size="lg">
+              <MicIcon className="size-4.5" />
+              Iniciar grabación
+            </Button>
+          ) : null}
+          {phase === "starting" ? (
+            <Button size="lg" disabled>
+              Preparando…
+            </Button>
+          ) : null}
+          {phase === "recording" ? (
+            <>
+              <Button onClick={pause} variant="secondary" size="lg">
+                Pausar
+              </Button>
+              <Button onClick={finish} size="lg">
+                Finalizar y transcribir
+              </Button>
+            </>
+          ) : null}
+          {phase === "paused" ? (
+            <>
+              <Button onClick={resume} size="lg">
+                Reanudar
+              </Button>
+              <Button onClick={finish} variant="secondary" size="lg">
+                Finalizar y transcribir
+              </Button>
+            </>
+          ) : null}
+          {phase === "processing" ? (
+            <Button size="lg" disabled>
+              Procesando transcripción…
+            </Button>
           ) : null}
 
           {demoModeAvailable && !recording && phase !== "processing" ? (
-            <div className="border-t border-line pt-4">
-              <p className="text-xs text-ink-muted">
-                Plan B de la demostración, sin micrófono ni servicios externos:
-              </p>
-              <Button onClick={useDemoTranscript} variant="secondary" size="sm" className="mt-2">
-                Cargar transcripción de demostración
-              </Button>
-            </div>
+            <Button onClick={useDemoTranscript} variant="ghost" size="lg" className="ml-auto">
+              Cargar transcripción de demostración
+            </Button>
           ) : null}
-
-          {error ? <Alert tone="danger" title="No se pudo continuar">{error}</Alert> : null}
-          {notice ? <Alert tone="review">{notice}</Alert> : null}
-        </CardBody>
+        </div>
       </Card>
 
-      <Card className="lg:col-span-3">
+      {!liveTranscriptionAvailable ? (
+        <Alert tone="review" title="Transcripción en vivo no disponible">
+          Deepgram no está configurado. Puede grabar igualmente: al finalizar se usará la transcripción de
+          demostración, claramente rotulada como simulación.
+        </Alert>
+      ) : null}
+
+      {liveDetail ? (
+        <Alert tone="review">
+          {liveDetail} La grabación continúa y se transcribirá desde el audio completo al finalizar.
+        </Alert>
+      ) : null}
+
+      {error ? (
+        <Alert tone="danger" title="No se pudo continuar">
+          {error}
+        </Alert>
+      ) : null}
+      {notice ? <Alert tone="review">{notice}</Alert> : null}
+
+      <Card>
         <CardHeader>
           <CardTitle>Transcripción en vivo</CardTitle>
           <CardDescription>
-            El texto provisional aparece en gris y no se guarda. Solo se conservan las intervenciones confirmadas.
+            El texto provisional aparece atenuado y no se guarda. Solo se conservan las intervenciones confirmadas,
+            con su hablante y su marca de tiempo.
           </CardDescription>
         </CardHeader>
         <CardBody>
@@ -366,16 +390,23 @@ export function Recorder({
           ) : (
             <ol className="max-h-96 space-y-3 overflow-y-auto pr-1" aria-live="polite">
               {segments.map((segment) => (
-                <li key={segment.id} className="rounded-lg bg-canvas px-3 py-2">
-                  <p className="text-xs font-semibold text-navy-600">
+                <li
+                  key={segment.id}
+                  className="rise-in rounded-xl border border-line bg-surface-inset/70 px-3 py-2.5"
+                >
+                  <p
+                    className="flex items-center gap-1.5 text-xs font-semibold"
+                    style={{ color: speakerColor(segment.speaker, speakerOrder) }}
+                  >
+                    <span aria-hidden className="size-1.5 rounded-full bg-current" />
                     {segment.speaker} · {formatClock(segment.start)}
                   </p>
                   <p className="mt-1 text-sm leading-relaxed text-ink">{segment.text}</p>
                 </li>
               ))}
               {interim ? (
-                <li className="rounded-lg border border-dashed border-line-strong px-3 py-2">
-                  <p className="text-xs font-semibold text-ink-subtle">Provisional</p>
+                <li className="rounded-xl border border-dashed border-line-strong px-3 py-2.5">
+                  <p className="text-xs font-semibold text-ink-subtle">Provisional · no se guarda</p>
                   <p className="mt-1 text-sm italic leading-relaxed text-ink-subtle">{interim}</p>
                 </li>
               ) : null}

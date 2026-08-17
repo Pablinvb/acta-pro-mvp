@@ -20,6 +20,7 @@ Español de Ecuador · zona horaria `America/Guayaquil`.
 8. Docente y representante firman en el mismo dispositivo.
 9. El sistema genera el PDF, calcula su huella SHA-256, lo archiva en el repositorio y registra la auditoría.
 10. El acta se envía al representante por correo, o se muestra una vista previa rotulada como simulación.
+11. Los acuerdos y compromisos aprobados pasan al **tablero de seguimiento**, con su responsable y su fecha tal como constan en el acta. La docente marca su avance; el sistema no da nada por cumplido.
 
 ## Lo que el MVP **no** hace
 
@@ -102,7 +103,8 @@ Con el proyecto de Supabase creado, ejecute en el editor SQL, en este orden:
 
 1. `supabase/migrations/0001_init.sql` — tablas, índices, funciones y políticas de Row Level Security.
 2. `supabase/migrations/0002_storage.sql` — bucket privado `acta-documents`.
-3. `supabase/seed.sql` — datos ficticios de demostración.
+3. `supabase/migrations/0003_commitment_tracking.sql` — tablero de seguimiento de acuerdos.
+4. `supabase/seed.sql` — datos ficticios de demostración.
 
 El archivo de semilla necesita que el usuario docente exista antes en `auth.users`. Créelo desde **Authentication → Add user** con el correo `ana.perez@demo.actapro.ec` y ajuste el identificador en `seed.sql` si Supabase asigna otro.
 
@@ -142,10 +144,10 @@ npx playwright install chromium
 ```
 src/
   app/
-    (app)/                  páginas autenticadas: dashboard, reuniones, repositorio, integraciones
+    (app)/                  páginas autenticadas: dashboard, reuniones, actas, seguimiento, integraciones
     api/                    rutas de servidor: Deepgram, Anthropic, PDF, correo, Google, salud
     login/                  autenticación
-  components/               interfaz accesible reutilizable
+  components/               interfaz accesible reutilizable, marca e iconografía
   lib/
     anthropic/              prompt y generación validada del acta
     api/                    errores, límite de tasa y utilidades HTTP
@@ -163,6 +165,22 @@ docs/                       arquitectura, privacidad y guion de demostración
 ```
 
 Más detalle en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/PRIVACY_CHECKLIST.md`](docs/PRIVACY_CHECKLIST.md) y [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+
+---
+
+## Identidad visual
+
+Tema oscuro institucional: azul marino profundo como fondo, azul eléctrico `#1F6FEB` como único acento de marca, verde reservado a lo verificado, ámbar a lo que exige revisión humana y rojo a la grabación en curso. Tipografía Inter. Los tokens viven en `src/app/globals.css` bajo `@theme`; los componentes no llevan colores literales.
+
+Elementos propios de la identidad implementados como componentes:
+
+- `LiveWaveform` — nivel de audio en tiempo real durante la grabación. Solo visualiza: lee un `AnalyserNode` y no graba ni envía nada.
+- `StaticWaveform` — huella visual determinística de cada voz en la pantalla de hablantes. No reproduce audio, porque el audio no se conserva.
+- `ProgressRing` — anillo de cumplimiento de acuerdos. Muestra `—` en lugar de `0 %` cuando todavía no hay compromisos.
+- `FollowUpBoard` — tablero de responsables por semana, con avance en un clic.
+- `LiveBadge` — indicador rojo pulsante de grabación en curso.
+
+Todas las animaciones se desactivan con `prefers-reduced-motion`.
 
 ---
 

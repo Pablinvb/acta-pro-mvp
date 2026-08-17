@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 import type { Minutes } from "@/lib/schemas/minutes";
 import type {
   AuditLog,
+  CommitmentStatus,
+  CommitmentTracking,
+  CommitmentWithContext,
   ConsentStatus,
   DocumentRecord,
   Institution,
@@ -36,6 +39,7 @@ import type {
   Repository,
 } from "@/lib/data/repository";
 import { NotFoundError } from "@/lib/data/repository";
+import { deriveCommitments } from "@/lib/data/commitments";
 
 /**
  * Repositorio en memoria para el modo demostración.
@@ -58,6 +62,7 @@ interface DemoState {
   minutes: MinutesRecord[];
   signatures: Signature[];
   documents: DocumentRecord[];
+  commitments: CommitmentTracking[];
   audit: AuditLog[];
   files: Map<string, Uint8Array>;
 }
@@ -75,6 +80,7 @@ function seedState(): DemoState {
     minutes: [],
     signatures: [],
     documents: [],
+    commitments: [],
     audit: [],
     files: new Map(),
   };
@@ -382,6 +388,75 @@ export class DemoRepository implements Repository {
       items.push({ document, meeting, student });
     }
     return items.sort((a, b) => b.document.created_at.localeCompare(a.document.created_at));
+  }
+
+  async syncCommitmentsFromMinutes(minutesId: string) {
+    const store = state();
+    const record = store.minutes.find((item) => item.id === minutesId);
+    if (!record) throw new NotFoundError("el acta", minutesId);
+    const meeting = store.meetings.find((item) => item.id === record.meeting_id);
+    if (!meeting) throw new NotFoundError("la reunión", record.meeting_id);
+
+    const previous = store.commitments.filter((item) => item.minutes_id === minutesId);
+    store.commitments = store.commitments.filter((item) => item.minutes_id !== minutesId);
+
+    const timestamp = now();
+    const created = deriveCommitments(record).map((item) => {
+      // Al regenerar el acta se conserva el avance ya registrado para la misma entrada.
+      const existing = previous.find(
+        (candidate) => candidate.kind === item.kind && candidate.item_index === item.item_index,
+      );
+      const tracking: CommitmentTracking = {
+        id: existing?.id ?? randomUUID(),
+        institution_id: meeting.institution_id,
+        meeting_id: meeting.id,
+        minutes_id: minutesId,
+        kind: item.kind,
+        item_index: item.item_index,
+        description: item.description,
+        responsible: item.responsible,
+        due_date: item.due_date,
+        status: existing?.status ?? "pending",
+        completed_at: existing?.completed_at ?? null,
+        updated_at: timestamp,
+        created_at: existing?.created_at ?? timestamp,
+      };
+      return tracking;
+    });
+
+    store.commitments.push(...created);
+    return created;
+  }
+
+  async listCommitments(institutionId: string, filters?: { studentId?: string }) {
+    const store = state();
+    const items: CommitmentWithContext[] = [];
+
+    for (const commitment of store.commitments) {
+      if (commitment.institution_id !== institutionId) continue;
+      const meeting = store.meetings.find((item) => item.id === commitment.meeting_id);
+      if (!meeting) continue;
+      if (filters?.studentId && meeting.student_id !== filters.studentId) continue;
+      const student = store.students.find((item) => item.id === meeting.student_id);
+      if (!student) continue;
+      items.push({ commitment, meeting, student });
+    }
+
+    return items.sort((a, b) => {
+      // Primero lo que tiene fecha, en orden cronológico; lo demás al final.
+      const left = a.commitment.due_date ?? "9999-12-31";
+      const right = b.commitment.due_date ?? "9999-12-31";
+      return left.localeCompare(right);
+    });
+  }
+
+  async setCommitmentStatus(id: string, status: CommitmentStatus) {
+    const commitment = state().commitments.find((item) => item.id === id);
+    if (!commitment) throw new NotFoundError("el compromiso", id);
+    commitment.status = status;
+    commitment.completed_at = status === "completed" ? now() : null;
+    commitment.updated_at = now();
+    return commitment;
   }
 
   async appendAudit(input: AuditInput) {

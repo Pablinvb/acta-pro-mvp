@@ -12,7 +12,7 @@ export function MeetingHeader({ detail, current }: { detail: MeetingDetail; curr
     <header className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link href="/meetings" className="text-sm font-medium text-navy-600 hover:underline">
+          <Link href="/meetings" className="text-sm font-medium text-brand-400 hover:text-brand-300 hover:underline">
             ← Reuniones
           </Link>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink">{meeting.title}</h1>

@@ -107,11 +107,32 @@ Un archivo no puede contener la huella de sí mismo. Imprimir una y almacenar la
 
 El código del documento tiene la forma `ACTA-<año>-<8 caracteres de la reunión>-v<versión>`.
 
-### 3.6 Auditoría
+### 3.6 Seguimiento de acuerdos
+
+Al aprobar un acta, `syncCommitmentsFromMinutes` deriva sus acuerdos y compromisos hacia `commitment_tracking`. Tres decisiones importan:
+
+1. **Se toma la versión aprobada, no el borrador de la IA.** Si la docente editó el texto, es su redacción la que entra al tablero.
+2. **La operación es idempotente y conserva el avance.** Regenerar o reeditar un acta no reinicia lo que ya se marcó como completado, porque la clave es `(minutes_id, kind, item_index)`.
+3. **El estado solo lo cambia una persona.** No hay ninguna regla que marque algo como cumplido al llegar su fecha: el sistema muestra el vencimiento y espera la decisión humana.
+
+Una fecha ausente en el acta sigue ausente en el tablero: esos compromisos aparecen en una lista aparte, «sin fecha», en vez de recibir una fecha inventada.
+
+### 3.7 Auditoría
 
 `audit_logs` registra: creación, confirmación de participantes, consentimiento, inicio y fin de grabación, transcripción guardada o recuperada, mapeo de hablantes, generación, edición, aprobación, firma, generación del PDF, descarga, envío y sincronización con Google.
 
-`metadata_json` guarda **recuentos e identificadores**, nunca contenido: número de segmentos, versión, huella, rol de quien firma, versión del texto de consentimiento.
+`metadata_json` guarda **recuentos e identificadores**, nunca contenido: número de segmentos, versión, huella, rol de quien firma, versión del texto de consentimiento, índice del compromiso cuyo estado cambió.
+
+### 3.8 Capa visual
+
+El sistema de diseño vive en `src/app/globals.css` como tokens de `@theme`; ningún componente escribe un color literal. La identidad es oscura: azul marino profundo, azul eléctrico como único acento de marca, verde solo para lo verificado, ámbar para lo que exige revisión y rojo para la grabación en curso.
+
+Dos componentes merecen aclaración, porque parecen prometer más de lo que hacen:
+
+- `LiveWaveform` lee un `AnalyserNode` para dibujar el nivel del micrófono. **No graba ni transmite**: el audio que viaja a Deepgram sale de `MediaRecorder`, no de aquí. Si el navegador no expone `AudioContext`, la barra queda plana y la grabación continúa igual.
+- `StaticWaveform` dibuja una forma determinística derivada del texto de la intervención. **No es la onda real del audio** y no reproduce nada, porque el audio no se conserva. Sirve para distinguir voces de un vistazo.
+
+`speakerColor` vive en `src/lib/speakers.ts`, fuera de los componentes de cliente, para poder asignar el color de cada voz también desde el servidor.
 
 ## 4. Seguridad
 

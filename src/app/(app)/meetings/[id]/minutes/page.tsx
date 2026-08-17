@@ -5,6 +5,7 @@ import { MeetingHeader } from "@/components/meeting-header";
 import { MinutesEditor } from "@/app/(app)/meetings/[id]/minutes/minutes-editor";
 import { loadMeeting, requireStage } from "@/app/(app)/meetings/[id]/meeting-context";
 import type { SourceSegment } from "@/components/source-segments";
+import { speakerColor } from "@/lib/speakers";
 
 export const metadata: Metadata = { title: "Acta" };
 
@@ -35,12 +36,16 @@ export default async function MinutesPage({ params }: { params: Promise<{ id: st
       .map((participant) => [participant.speaker_label!, participant.display_name]),
   );
 
+  // Un color estable por voz, coherente con la pantalla de hablantes.
+  const speakerOrder = [...new Set(segments.map((segment) => segment.speaker_label))].sort();
+
   const sourceSegments: SourceSegment[] = segments.map((segment) => ({
     id: segment.id,
     speaker: segment.speaker_label,
     displayName: speakerToName.get(segment.speaker_label) ?? segment.speaker_label,
     start: segment.start_seconds,
     text: segment.text,
+    color: speakerColor(segment.speaker_label, speakerOrder),
   }));
 
   const editable = record.status === "draft" && detail.meeting.status === "draft";

@@ -60,7 +60,7 @@ export function NewMeetingForm({ students }: { students: Student[] }) {
       </Field>
 
       {state.error ? (
-        <p role="alert" className="rounded-lg bg-danger-50 px-3 py-2 text-sm font-medium text-danger-600">
+        <p role="alert" className="rounded-xl border border-danger-500/35 bg-danger-soft px-3 py-2 text-sm font-medium text-danger-400">
           {state.error}
         </p>
       ) : null}

@@ -37,6 +37,32 @@ export function formatClock(totalSeconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+/** Lunes de la semana de `value`, en UTC, como YYYY-MM-DD. */
+export function startOfWeek(value: Date | string): string {
+  const date = typeof value === "string" ? new Date(`${value}T00:00:00Z`) : new Date(value);
+  const day = date.getUTCDay();
+  // getUTCDay(): 0 es domingo; se desplaza para que la semana empiece el lunes.
+  const offset = day === 0 ? -6 : 1 - day;
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Las `count` semanas consecutivas a partir de la semana de `from`. */
+export function weekRange(from: Date, count: number): string[] {
+  const first = new Date(`${startOfWeek(from)}T00:00:00Z`);
+  return Array.from({ length: count }, (_, index) => {
+    const week = new Date(first);
+    week.setUTCDate(week.getUTCDate() + index * 7);
+    return week.toISOString().slice(0, 10);
+  });
+}
+
+export function shortDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "short", timeZone: "UTC" }).format(date);
+}
+
 export function shortHash(hash: string, size = 12) {
   if (hash.length <= size * 2) return hash;
   return `${hash.slice(0, size)}…${hash.slice(-size)}`;

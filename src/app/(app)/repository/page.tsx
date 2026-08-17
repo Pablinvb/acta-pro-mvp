@@ -43,7 +43,7 @@ export default async function RepositoryPage({
         <Link
           href="/repository"
           className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
-            estudiante ? "border-line-strong text-ink-muted hover:bg-canvas" : "border-navy-100 bg-navy-50 text-navy-600"
+            estudiante ? "border-line-strong text-ink-muted hover:border-brand-500/40 hover:text-ink" : "border-brand-500/50 bg-brand-soft text-brand-300"
           }`}
         >
           Todos
@@ -54,8 +54,8 @@ export default async function RepositoryPage({
             href={`/repository?estudiante=${student.id}`}
             className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
               estudiante === student.id
-                ? "border-navy-100 bg-navy-50 text-navy-600"
-                : "border-line-strong text-ink-muted hover:bg-canvas"
+                ? "border-brand-500/50 bg-brand-soft text-brand-300"
+                : "border-line-strong text-ink-muted hover:border-brand-500/40 hover:text-ink"
             }`}
           >
             {student.full_name}
@@ -84,7 +84,7 @@ export default async function RepositoryPage({
                   <li key={document.id}>
                     <Link
                       href={`/repository/${document.id}`}
-                      className="block rounded-card border border-line bg-surface px-5 py-4 transition-colors hover:border-navy-100 hover:bg-navy-50/40"
+                      className="block rounded-card border border-line bg-surface/70 px-5 py-4 transition-all hover:border-brand-500/50 hover:bg-surface-raised/70"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">

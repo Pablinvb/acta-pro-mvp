@@ -2,6 +2,9 @@ import type { Minutes } from "@/lib/schemas/minutes";
 import type {
   AuditAction,
   AuditLog,
+  CommitmentStatus,
+  CommitmentTracking,
+  CommitmentWithContext,
   ConsentStatus,
   DocumentRecord,
   Institution,
@@ -127,6 +130,14 @@ export interface Repository {
   getDocument(id: string): Promise<DocumentRecord | null>;
   updateDocument(id: string, patch: Partial<DocumentRecord>): Promise<DocumentRecord>;
   listDocuments(institutionId: string, filters?: { studentId?: string }): Promise<DocumentListItem[]>;
+
+  /**
+   * Deriva los acuerdos y compromisos de un acta aprobada hacia el tablero de
+   * seguimiento. Es idempotente: reemplaza lo derivado de esa misma acta.
+   */
+  syncCommitmentsFromMinutes(minutesId: string): Promise<CommitmentTracking[]>;
+  listCommitments(institutionId: string, filters?: { studentId?: string }): Promise<CommitmentWithContext[]>;
+  setCommitmentStatus(id: string, status: CommitmentStatus): Promise<CommitmentTracking>;
 
   appendAudit(input: AuditInput): Promise<AuditLog>;
   listAudit(meetingId: string): Promise<AuditLog[]>;

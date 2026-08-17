@@ -41,7 +41,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <Link href="/repository" className="text-sm font-medium text-navy-600 hover:underline">
+        <Link href="/repository" className="text-sm font-medium text-brand-400 hover:text-brand-300 hover:underline">
           ← Repositorio
         </Link>
         <h1 className="text-2xl font-bold tracking-tight text-ink">{detail.meeting.title}</h1>

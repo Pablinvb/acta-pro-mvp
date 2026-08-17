@@ -40,12 +40,12 @@ export function MeetingSteps({
               <span
                 aria-hidden
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+                  "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
                   isCurrent
-                    ? "border-navy-600 bg-navy-600 text-white"
+                    ? "border-brand-400 bg-brand-500 text-white"
                     : unlocked
-                      ? "border-navy-100 bg-navy-50 text-navy-600"
-                      : "border-line bg-canvas text-ink-subtle",
+                      ? "border-brand-500/40 bg-brand-soft text-brand-300"
+                      : "border-line bg-surface-inset text-ink-subtle",
                 )}
               >
                 {index + 1}
@@ -61,8 +61,8 @@ export function MeetingSteps({
                   href={step.href(meetingId)}
                   aria-current={isCurrent ? "step" : undefined}
                   className={cn(
-                    "rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors",
-                    isCurrent ? "text-navy-600" : "text-ink-muted hover:bg-navy-50 hover:text-navy-600",
+                    "rounded-xl px-2.5 py-1.5 text-sm font-medium transition-colors",
+                    isCurrent ? "text-ink" : "text-ink-muted hover:bg-surface-raised/70 hover:text-ink",
                   )}
                 >
                   {content}
@@ -73,7 +73,10 @@ export function MeetingSteps({
                 </span>
               )}
               {index < MEETING_STEPS.length - 1 ? (
-                <span aria-hidden className="h-px w-4 bg-line-strong" />
+                <span
+                  aria-hidden
+                  className={cn("h-px w-5", unlocked ? "bg-brand-500/40" : "bg-line")}
+                />
               ) : null}
             </li>
           );

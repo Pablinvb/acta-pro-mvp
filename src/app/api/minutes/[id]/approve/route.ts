@@ -28,15 +28,19 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       approved_at: new Date().toISOString(),
     });
     await session.repository.updateMeeting(record.meeting_id, { status: "approved" });
+
+    // Los acuerdos y compromisos aprobados pasan al tablero de seguimiento.
+    const tracked = await session.repository.syncCommitmentsFromMinutes(id);
+
     await session.repository.appendAudit({
       institution_id: session.institution.id,
       actor_id: session.profile.id,
       meeting_id: record.meeting_id,
       action: "minutes.approved",
-      metadata_json: { version: record.version },
+      metadata_json: { version: record.version, tracked_commitments: tracked.length },
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, trackedCommitments: tracked.length });
   } catch (error) {
     return toErrorResponse(error);
   }

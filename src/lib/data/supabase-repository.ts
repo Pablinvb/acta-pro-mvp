@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Minutes } from "@/lib/schemas/minutes";
 import type {
   AuditLog,
+  CommitmentStatus,
+  CommitmentTracking,
   ConsentStatus,
   DocumentRecord,
   Institution,
@@ -25,6 +27,7 @@ import type {
   ParticipantInput,
   Repository,
 } from "@/lib/data/repository";
+import { deriveCommitments } from "@/lib/data/commitments";
 import { DOCUMENTS_BUCKET } from "@/lib/supabase/server";
 
 /** Fila de `minutes` tal como está en Postgres. */
@@ -425,6 +428,85 @@ export class SupabaseRepository implements Repository {
       const { students, ...meeting } = meetings;
       return { document: document as DocumentRecord, meeting: meeting as Meeting, student: students };
     });
+  }
+
+  async syncCommitmentsFromMinutes(minutesId: string) {
+    const record = await this.getMinutes(minutesId);
+    if (!record) throw new Error("El acta no existe.");
+    const meeting = await this.getMeeting(record.meeting_id);
+    if (!meeting) throw new Error("La reunión no existe.");
+
+    const { data: previousRows } = await this.db
+      .from("commitment_tracking")
+      .select("*")
+      .eq("minutes_id", minutesId);
+    const previous = (previousRows ?? []) as CommitmentTracking[];
+
+    const derived = deriveCommitments(record);
+    const rows = derived.map((item) => {
+      // Al regenerar el acta se conserva el avance ya registrado.
+      const existing = previous.find(
+        (candidate) => candidate.kind === item.kind && candidate.item_index === item.item_index,
+      );
+      return {
+        institution_id: meeting.institution_id,
+        meeting_id: meeting.id,
+        minutes_id: minutesId,
+        kind: item.kind,
+        item_index: item.item_index,
+        description: item.description,
+        responsible: item.responsible,
+        due_date: item.due_date,
+        status: existing?.status ?? "pending",
+        completed_at: existing?.completed_at ?? null,
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    const { error: deleteError } = await this.db
+      .from("commitment_tracking")
+      .delete()
+      .eq("minutes_id", minutesId);
+    if (deleteError) throw new Error(`No se pudo actualizar el seguimiento: ${deleteError.message}`);
+
+    if (rows.length === 0) return [];
+
+    const { data, error } = await this.db.from("commitment_tracking").insert(rows).select("*");
+    if (error) throw new Error(`No se pudo actualizar el seguimiento: ${error.message}`);
+    return (data ?? []) as CommitmentTracking[];
+  }
+
+  async listCommitments(institutionId: string, filters?: { studentId?: string }) {
+    let query = this.db
+      .from("commitment_tracking")
+      .select("*, meetings!inner(*, students!inner(*))")
+      .eq("institution_id", institutionId)
+      .order("due_date", { ascending: true, nullsFirst: false });
+    if (filters?.studentId) query = query.eq("meetings.student_id", filters.studentId);
+
+    const { data, error } = await query;
+    if (error) throw new Error(`No se pudo leer el seguimiento: ${error.message}`);
+
+    type Row = CommitmentTracking & { meetings: Meeting & { students: Student } };
+    return ((data ?? []) as Row[]).map((row) => {
+      const { meetings, ...commitment } = row;
+      const { students, ...meeting } = meetings;
+      return { commitment: commitment as CommitmentTracking, meeting: meeting as Meeting, student: students };
+    });
+  }
+
+  async setCommitmentStatus(id: string, status: CommitmentStatus) {
+    const result = await this.db
+      .from("commitment_tracking")
+      .update({
+        status,
+        completed_at: status === "completed" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+    return unwrap(result, "No se pudo actualizar el compromiso") as CommitmentTracking;
   }
 
   async appendAudit(input: AuditInput) {
