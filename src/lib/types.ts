@@ -1,0 +1,180 @@
+import type { Minutes } from "@/lib/schemas/minutes";
+
+export type UserRole = "teacher" | "admin";
+
+export type MeetingStatus =
+  | "scheduled"
+  | "ready"
+  | "recording"
+  | "processing"
+  | "draft"
+  | "approved"
+  | "signed"
+  | "sent";
+
+export type MeetingSource = "manual" | "mock_runachay" | "google_calendar";
+
+export type ParticipantType = "teacher" | "representative" | "student" | "other";
+
+export type ConsentStatus = "pending" | "granted" | "declined";
+
+export type MinutesStatus = "draft" | "approved";
+
+export type SpeakerLabel = string;
+
+export interface Institution {
+  id: string;
+  name: string;
+  address: string | null;
+  created_at: string;
+}
+
+export interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  role: UserRole;
+  institution_id: string;
+  created_at: string;
+}
+
+export interface Student {
+  id: string;
+  institution_id: string;
+  external_id: string | null;
+  full_name: string;
+  grade: string | null;
+  section: string | null;
+  active: boolean;
+}
+
+export interface Representative {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface StudentRepresentative {
+  student_id: string;
+  representative_id: string;
+  relationship: string | null;
+}
+
+export interface Meeting {
+  id: string;
+  institution_id: string;
+  teacher_id: string;
+  student_id: string;
+  title: string;
+  reason: string | null;
+  scheduled_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  status: MeetingStatus;
+  source: MeetingSource;
+  google_event_id: string | null;
+  created_at: string;
+}
+
+export interface MeetingParticipant {
+  id: string;
+  meeting_id: string;
+  participant_type: ParticipantType;
+  participant_ref_id: string | null;
+  display_name: string;
+  speaker_label: SpeakerLabel | null;
+  consent_status: ConsentStatus;
+  consent_at: string | null;
+  consent_text_version: string | null;
+}
+
+export interface TranscriptSegment {
+  id: string;
+  meeting_id: string;
+  speaker_label: SpeakerLabel;
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
+  confidence: number | null;
+  is_final: boolean;
+  created_at: string;
+}
+
+export interface MinutesRecord {
+  id: string;
+  meeting_id: string;
+  version: number;
+  status: MinutesStatus;
+  content: Minutes;
+  /** Ediciones humanas aplicadas sobre el borrador de la IA. */
+  edited_content: Minutes | null;
+  /** Índices de language_flags aceptados por el docente. */
+  accepted_language_flags: number[];
+  generated_at: string;
+  approved_at: string | null;
+  generator: "anthropic" | "demo";
+  model: string | null;
+}
+
+export interface Signature {
+  id: string;
+  minutes_id: string;
+  signer_name: string;
+  signer_role: ParticipantType;
+  /** Data URL PNG de la firma manuscrita digitalizada. */
+  signature_path: string;
+  signed_at: string;
+  acceptance_text_version: string;
+}
+
+export interface DocumentRecord {
+  id: string;
+  minutes_id: string;
+  meeting_id: string;
+  storage_path: string;
+  sha256: string;
+  document_code: string;
+  version: number;
+  sent_at: string | null;
+  provider_message_id: string | null;
+  created_at: string;
+}
+
+export type AuditAction =
+  | "meeting.created"
+  | "meeting.participants_confirmed"
+  | "consent.recorded"
+  | "recording.started"
+  | "recording.stopped"
+  | "transcription.saved"
+  | "transcription.recovered"
+  | "speakers.mapped"
+  | "minutes.generated"
+  | "minutes.edited"
+  | "minutes.approved"
+  | "minutes.signed"
+  | "document.generated"
+  | "document.downloaded"
+  | "document.sent"
+  | "google.synced";
+
+export interface AuditLog {
+  id: string;
+  institution_id: string;
+  actor_id: string | null;
+  meeting_id: string | null;
+  action: AuditAction;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+}
+
+/** Vista compuesta usada por la interfaz para no encadenar consultas. */
+export interface MeetingDetail {
+  meeting: Meeting;
+  student: Student;
+  teacher: Profile;
+  representatives: Representative[];
+  participants: MeetingParticipant[];
+  institution: Institution;
+}
