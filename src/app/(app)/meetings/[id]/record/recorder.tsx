@@ -221,10 +221,13 @@ export function Recorder({
     }
   }
 
-  async function recoverFromAudio() {
+  async function recoverFromAudio(options: { demo?: boolean } = {}) {
     const form = new FormData();
     form.append("meetingId", meetingId);
-    if (chunksRef.current.length > 0) {
+    // `source=demo` pide la transcripción ficticia aunque Deepgram esté
+    // configurado: es el plan B que la interfaz ofrece de forma explícita.
+    if (options.demo) form.append("source", "demo");
+    if (!options.demo && chunksRef.current.length > 0) {
       form.append("audio", new Blob(chunksRef.current, { type: "audio/webm" }), "grabacion.webm");
     }
 
@@ -248,7 +251,7 @@ export function Recorder({
     try {
       await callApi(`/api/meetings/${meetingId}/recording`, { action: "start" }).catch(() => undefined);
       await callApi(`/api/meetings/${meetingId}/recording`, { action: "stop" }).catch(() => undefined);
-      await recoverFromAudio();
+      await recoverFromAudio({ demo: true });
       setPhase("done");
       router.push(`/meetings/${meetingId}/speakers`);
       router.refresh();

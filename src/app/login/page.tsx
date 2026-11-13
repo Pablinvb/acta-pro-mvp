@@ -5,7 +5,7 @@ import { LoginForm } from "@/app/login/login-form";
 import { ActaProMark } from "@/components/brand";
 import { DocumentIcon, ShieldCheckIcon, SparkIcon, TrackingIcon } from "@/components/icons";
 import { getSession } from "@/lib/session";
-import { isDemoMode, isSupabaseConfigured } from "@/lib/env";
+import { resolveDataMode } from "@/lib/data/mode";
 import { DEMO_TEACHER_EMAIL, DEMO_TEACHER_PASSWORD } from "@/lib/demo/seed-data";
 
 export const metadata: Metadata = { title: "Ingresar" };
@@ -21,8 +21,9 @@ export default async function LoginPage() {
   const session = await getSession();
   if (session) redirect("/dashboard");
 
-  const usingSupabase = isSupabaseConfigured();
-  const demo = isDemoMode();
+  const { mode, supabaseUnreachable } = await resolveDataMode();
+  const usingSupabase = mode === "supabase";
+  const demo = !usingSupabase;
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.15fr_1fr]">
@@ -95,12 +96,14 @@ export default async function LoginPage() {
           <p className="mt-2 text-sm text-ink-muted">
             {usingSupabase
               ? "Autenticación gestionada por Supabase."
-              : "Autenticación de demostración: no hay proveedor de identidad conectado."}
+              : supabaseUnreachable
+                ? "Supabase está configurado pero no responde. Se continúa en modo demostración."
+                : "Autenticación de demostración: no hay proveedor de identidad conectado."}
           </p>
 
-          <LoginForm defaultEmail={demo && !usingSupabase ? DEMO_TEACHER_EMAIL : ""} />
+          <LoginForm defaultEmail={demo ? DEMO_TEACHER_EMAIL : ""} />
 
-          {demo && !usingSupabase ? (
+          {demo ? (
             <div className="mt-6 rounded-card border border-review-500/30 bg-review-soft px-4 py-3 text-sm text-review-400">
               <p className="font-semibold text-ink">Credenciales de demostración</p>
               <p className="mt-1">

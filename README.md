@@ -184,6 +184,30 @@ Todas las animaciones se desactivan con `prefers-reduced-motion`.
 
 ---
 
+## Diagnóstico cuando algo no funciona
+
+```bash
+npm run check:env   # presencia y formato, sin imprimir valores
+```
+
+```bash
+npm run test:smoke  # golpea las APIs reales; omite lo que no tenga clave
+```
+
+Con la aplicación levantada, `GET /api/health/integrations` devuelve solo etiquetas de estado.
+
+Tres fallos habituales y cómo se comporta la aplicación ante cada uno:
+
+| Síntoma | Causa | Comportamiento |
+| --- | --- | --- |
+| «Supabase no responde» | El proyecto está pausado o borrado, o `NEXT_PUBLIC_SUPABASE_URL` tiene una errata. Compruébelo con `nslookup <ref>.supabase.co`: si el dominio no existe, el proyecto tampoco. | Con `DEMO_MODE=true` continúa en memoria y lo advierte en rojo. Con `DEMO_MODE=false` falla de forma visible: no sustituye datos reales por ficticios. |
+| «La clave de Deepgram no tiene permiso para emitir tokens temporales» | La clave autentica pero le falta alcance sobre `/v1/auth/grant`. Cree una con rol de propietario o administrador del proyecto. | La transcripción en vivo se deshabilita; al finalizar transcribe el audio completo por la ruta pregrabada, que usa la misma clave y sí funciona. |
+| El acta sale rotulada «Borrador de demostración» | Falta `ANTHROPIC_API_KEY`. | Usa el generador determinístico y lo declara en la propia acta. Nunca presenta como análisis algo que no lo fue. |
+
+El botón **Cargar transcripción de demostración** funciona siempre que `DEMO_MODE=true`, incluso con Deepgram configurado: es el plan B de la demostración y su respuesta viene marcada como simulada.
+
+---
+
 ## Seguridad
 
 - Ninguna clave de proveedor llega al navegador. Deepgram se usa desde el cliente con **tokens temporales** emitidos por el servidor.

@@ -45,6 +45,15 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
+      // Un 401/403 aquí casi siempre significa que la clave es válida pero no
+      // tiene permiso para emitir tokens temporales. Decirlo evita horas de
+      // búsqueda: la transcripción pregrabada seguirá funcionando igual.
+      if (response.status === 401 || response.status === 403) {
+        throw new ApiError(
+          502,
+          "La clave de Deepgram no tiene permiso para emitir tokens temporales. La transcripción en vivo queda deshabilitada; al finalizar se transcribirá el audio completo.",
+        );
+      }
       throw new ApiError(502, "El proveedor de transcripción rechazó la solicitud de token.");
     }
 

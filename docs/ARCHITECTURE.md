@@ -44,6 +44,20 @@ El audio **nunca** se almacena en el servidor. Viaja en directo a Deepgram por W
 
 `DEMO_MODE` describe la ausencia de **claves externas**, no una base de datos distinta: con Supabase configurado se usa Postgres aunque `DEMO_MODE` siga en `true`.
 
+`resolveDataMode()` (`src/lib/data/mode.ts`) decide en un solo lugar de dónde salen los datos, y lo usan por igual el repositorio, la resolución de sesión y el inicio de sesión. Tener las variables puestas no demuestra que el proyecto exista: puede estar pausado, borrado o la URL tener una errata. Antes se daba por bueno que «configurado» equivalía a «disponible», y un proyecto caído dejaba la aplicación sin forma de entrar, porque el acceso por Supabase fallaba y las credenciales de demostración quedaban bloqueadas por tener precedencia.
+
+La sonda consulta `/auth/v1/health` con un plazo de 3 s y se cachea 30 s por proceso. Cualquier respuesta HTTP cuenta como alcanzable, incluido un 401: lo que se descarta es un fallo de red.
+
+| Situación | Modo | Qué ve la persona |
+| --- | --- | --- |
+| Sin configurar, `DEMO_MODE=true` | memoria | Aviso ámbar: los datos se pierden al reiniciar |
+| Sin configurar, `DEMO_MODE=false` | — | Error explícito al arrancar |
+| Configurado y responde | Postgres | Sesión verificada |
+| Configurado y no responde, `DEMO_MODE=true` | memoria | Aviso rojo: «Supabase no responde» |
+| Configurado y no responde, `DEMO_MODE=false` | Postgres | El fallo se ve tal cual es |
+
+La última fila es deliberada: con `DEMO_MODE=false` no se sustituyen datos reales por ficticios, porque presentar un escenario de demostración como si fuera el expediente de un estudiante sería peor que caerse.
+
 ### 3.2 Máquina de estados
 
 `scheduled → ready → recording → processing → draft → approved → signed → sent`

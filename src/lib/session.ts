@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 
 import { getRepository } from "@/lib/data";
 import type { Repository } from "@/lib/data/repository";
-import { getEnv, isSupabaseConfigured } from "@/lib/env";
+import { getEnv } from "@/lib/env";
+import { resolveDataMode } from "@/lib/data/mode";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DEMO_TEACHER_ID } from "@/lib/demo/seed-data";
 import type { Institution, Profile } from "@/lib/types";
@@ -19,7 +20,9 @@ export interface Session {
 }
 
 async function resolveProfileId(): Promise<{ id: string; mode: Session["mode"] } | null> {
-  if (isSupabaseConfigured()) {
+  const { mode } = await resolveDataMode();
+
+  if (mode === "supabase") {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
     if (!data.user) return null;

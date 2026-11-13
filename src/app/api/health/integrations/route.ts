@@ -10,6 +10,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/env";
 import { getGoogleCredentials } from "@/lib/google/credentials";
+import { isSupabaseReachable } from "@/lib/data/mode";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,12 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    supabase: isSupabaseConfigured(env) ? "configured" : "missing",
+    // "configured" promete demasiado si el proyecto no contesta.
+    supabase: !isSupabaseConfigured(env)
+      ? "missing"
+      : (await isSupabaseReachable())
+        ? "configured"
+        : "unreachable",
     deepgram: isDeepgramConfigured(env) ? "configured" : "missing",
     anthropic: isAnthropicConfigured(env) ? "configured" : "missing",
     resend: isResendConfigured(env) ? "configured" : "missing",

@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 /**
  * Pruebas smoke contra los proveedores reales.
@@ -11,10 +11,11 @@ import { beforeAll, describe, expect, it } from "vitest";
  * Ninguna prueba envía correos ni escribe datos: solo comprueba que la
  * credencial es válida y que el contrato de la API sigue siendo el esperado.
  */
-beforeAll(() => {
-  config({ path: ".env.local", quiet: true });
-  config({ quiet: true });
-});
+// El entorno se carga en el ambito del modulo y no en un hook: las
+// condiciones de `describe.skipIf` se evaluan al recolectar las pruebas,
+// antes de que corra ningun hook, y con la carga diferida se omitian todas.
+config({ path: ".env.local", quiet: true });
+config({ quiet: true });
 
 const has = (name: string) => Boolean(process.env[name]?.trim());
 

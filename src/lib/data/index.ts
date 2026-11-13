@@ -1,29 +1,26 @@
-import { getEnv, isDemoMode, isSupabaseConfigured } from "@/lib/env";
 import { DemoRepository } from "@/lib/data/demo-repository";
 import { SupabaseRepository } from "@/lib/data/supabase-repository";
+import { resolveDataMode } from "@/lib/data/mode";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Repository } from "@/lib/data/repository";
 
 /**
- * Selecciona el repositorio activo.
+ * Selecciona el repositorio activo según `resolveDataMode`.
  *
- * Con Supabase configurado se usa Postgres aunque DEMO_MODE siga en true: el
+ * Con Supabase disponible se usa Postgres aunque DEMO_MODE siga en true: el
  * modo demo describe la ausencia de claves externas, no una base de datos
- * distinta. Sin Supabase, y solo si DEMO_MODE=true, se usa el repositorio en
- * memoria; en caso contrario se falla de forma explícita.
+ * distinta. Si Supabase está configurado pero no responde, se continúa en
+ * memoria solo cuando DEMO_MODE=true, y la interfaz lo advierte.
  */
 export async function getRepository(): Promise<Repository> {
-  const env = getEnv();
-  if (isSupabaseConfigured(env)) {
+  const { mode } = await resolveDataMode();
+
+  if (mode === "supabase") {
     const [db, admin] = [await createSupabaseServerClient(), createSupabaseAdminClient()];
     return new SupabaseRepository(db, admin);
   }
-  if (isDemoMode(env)) {
-    return new DemoRepository();
-  }
-  throw new Error(
-    "Supabase no está configurado y DEMO_MODE=false. Configure las variables o active el modo demostración.",
-  );
+
+  return new DemoRepository();
 }
 
 export function isDemoRepository(repository: Repository) {

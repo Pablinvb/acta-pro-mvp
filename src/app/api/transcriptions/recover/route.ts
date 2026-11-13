@@ -66,7 +66,19 @@ export async function POST(request: Request) {
     let duration: number;
     let simulated = false;
 
-    if (isDeepgramConfigured(env)) {
+    // El plan B de la demostración se pide de forma explícita desde la
+    // interfaz. Sin esta marca, tener Deepgram configurado hacía que el botón
+    // «Cargar transcripción de demostración» fallara por no enviar audio.
+    const wantsDemo = String(form.get("source") ?? "") === "demo";
+
+    if (wantsDemo) {
+      if (!env.DEMO_MODE) {
+        throw new ApiError(409, "La transcripción de demostración está desactivada (DEMO_MODE=false).");
+      }
+      recovered = demoSegments();
+      duration = DEMO_TRANSCRIPT_DURATION_SECONDS;
+      simulated = true;
+    } else if (isDeepgramConfigured(env)) {
       const file = form.get("audio");
       if (!(file instanceof File)) throw new ApiError(400, "Falta el archivo de audio.");
       if (file.size === 0) throw new ApiError(400, "La grabación está vacía.");

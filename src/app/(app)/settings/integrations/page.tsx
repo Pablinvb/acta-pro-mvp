@@ -15,10 +15,17 @@ import {
   missingRequiredVariables,
 } from "@/lib/env";
 import { getGoogleCredentials } from "@/lib/google/credentials";
+import { isSupabaseReachable } from "@/lib/data/mode";
 
 export const metadata: Metadata = { title: "Integraciones" };
 
-type Status = "Configurado" | "Falta configurar" | "Conectado" | "Modo demostración" | "No disponible";
+type Status =
+  | "Configurado"
+  | "Falta configurar"
+  | "Conectado"
+  | "Modo demostración"
+  | "No disponible"
+  | "No responde";
 
 const TONE: Record<Status, BadgeTone> = {
   Configurado: "verified",
@@ -26,6 +33,7 @@ const TONE: Record<Status, BadgeTone> = {
   "Falta configurar": "review",
   "Modo demostración": "review",
   "No disponible": "neutral",
+  "No responde": "danger",
 };
 
 interface IntegrationCard {
@@ -47,6 +55,8 @@ export default async function IntegrationsPage({
   const demo = env.DEMO_MODE;
   const missing = missingRequiredVariables(env);
 
+  const supabaseReachable = isSupabaseConfigured(env) ? await isSupabaseReachable() : false;
+
   let googleConnected = false;
   if (isGoogleConfigured(env)) {
     try {
@@ -59,11 +69,19 @@ export default async function IntegrationsPage({
   const cards: IntegrationCard[] = [
     {
       name: "Supabase",
-      status: isSupabaseConfigured(env) ? "Configurado" : demo ? "Modo demostración" : "Falta configurar",
+      status: !isSupabaseConfigured(env)
+        ? demo
+          ? "Modo demostración"
+          : "Falta configurar"
+        : supabaseReachable
+          ? "Configurado"
+          : "No responde",
       purpose: "Autenticación, base de datos y almacenamiento privado de los PDF.",
-      detail: isSupabaseConfigured(env)
-        ? "Los datos se guardan en Postgres con Row Level Security."
-        : "Sin Supabase, los datos viven en la memoria del servidor y se pierden al reiniciarlo.",
+      detail: !isSupabaseConfigured(env)
+        ? "Sin Supabase, los datos viven en la memoria del servidor y se pierden al reiniciarlo."
+        : supabaseReachable
+          ? "Los datos se guardan en Postgres con Row Level Security."
+          : "Las variables están puestas pero la API no contesta: el proyecto puede estar pausado, borrado o la URL tener una errata.",
       variables: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
     },
     {
