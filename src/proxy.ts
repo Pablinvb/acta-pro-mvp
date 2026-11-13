@@ -54,8 +54,11 @@ export async function proxy(request: NextRequest) {
     const exempt =
       path.startsWith("/settings") || path.startsWith("/api/health") || path.startsWith("/login");
     if (missing.length > 0 && !exempt) {
+      // Se dirige a /login y no a /settings/integrations: esa página exige
+      // sesión, y con la configuración incompleta no se puede iniciar sesión,
+      // así que el operador acababa en un login mudo sin saber qué faltaba.
       const target = request.nextUrl.clone();
-      target.pathname = "/settings/integrations";
+      target.pathname = "/login";
       target.search = "?configuracion=incompleta";
       return NextResponse.redirect(target);
     }

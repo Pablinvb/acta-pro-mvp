@@ -219,6 +219,10 @@ El botón **Cargar transcripción de demostración** funciona siempre que `DEMO_
 
 ## Despliegue
 
+**GitHub Pages no sirve para este proyecto.** Publica solo archivos estáticos y la aplicación necesita 17 rutas de servidor; llevarlas al navegador obligaría a exponer las claves en un repositorio público.
+
+Guía completa en [`docs/DEPLOY.md`](docs/DEPLOY.md): Vercel para la aplicación y Supabase para datos y archivos, con la lista exacta de variables y la comprobación posterior.
+
 - Aplicación en Vercel; datos y archivos en Supabase.
 - Configure las mismas variables de entorno en el proyecto de Vercel y actualice `NEXT_PUBLIC_APP_URL` y `GOOGLE_REDIRECT_URI` al dominio de producción.
 - El límite de tasa es en memoria por proceso: para varias instancias sustitúyalo por un almacén compartido antes de un uso institucional real.

@@ -6,6 +6,8 @@ import { ActaProMark } from "@/components/brand";
 import { DocumentIcon, ShieldCheckIcon, SparkIcon, TrackingIcon } from "@/components/icons";
 import { getSession } from "@/lib/session";
 import { resolveDataMode } from "@/lib/data/mode";
+import { Alert } from "@/components/ui/alert";
+import { missingRequiredVariables } from "@/lib/env";
 import { DEMO_TEACHER_EMAIL, DEMO_TEACHER_PASSWORD } from "@/lib/demo/seed-data";
 
 export const metadata: Metadata = { title: "Ingresar" };
@@ -17,9 +19,18 @@ const PILLS = [
   { icon: <ShieldCheckIcon className="size-4" />, label: "Trazabilidad" },
 ];
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ configuracion?: string }>;
+}) {
   const session = await getSession();
   if (session) redirect("/dashboard");
+
+  const { configuracion } = await searchParams;
+  // El login es la unica pagina visible sin sesion: si la configuracion esta
+  // incompleta hay que decirlo aqui, o el operador no sabe que falta.
+  const missing = missingRequiredVariables();
 
   const { mode, supabaseUnreachable } = await resolveDataMode();
   const usingSupabase = mode === "supabase";
@@ -92,6 +103,25 @@ export default async function LoginPage() {
 
       <section className="flex flex-col justify-center border-t border-line bg-surface/40 px-6 py-16 backdrop-blur lg:border-l lg:border-t-0 lg:px-14">
         <div className="mx-auto w-full max-w-sm">
+          {missing.length > 0 ? (
+            <Alert tone="danger" title="Configuración incompleta" className="mb-6">
+              Faltan variables indispensables en el servidor:{" "}
+              <span className="font-mono text-xs">{missing.join(", ")}</span>. Complételas en el entorno del
+              despliegue y vuelva a desplegar. Mientras tanto no es posible iniciar sesión.
+            </Alert>
+          ) : configuracion === "incompleta" ? (
+            <Alert tone="review" title="Configuración pendiente" className="mb-6">
+              La aplicación se desvió aquí porque la configuración del servidor no está completa.
+            </Alert>
+          ) : null}
+
+          {supabaseUnreachable ? (
+            <Alert tone="danger" title="Supabase no responde" className="mb-6">
+              Las variables están configuradas pero la API no contesta: el proyecto puede estar pausado, borrado o
+              la URL tener una errata.
+            </Alert>
+          ) : null}
+
           <h2 className="text-2xl font-bold tracking-tight text-ink">Ingrese a su cuenta</h2>
           <p className="mt-2 text-sm text-ink-muted">
             {usingSupabase
