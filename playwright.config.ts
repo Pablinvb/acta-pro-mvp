@@ -31,6 +31,12 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       DEMO_MODE: "true",
+      // La prueba no debe depender del saldo ni de las claves de quien la
+      // ejecuta: se fuerza el camino de demostración, que es determinístico
+      // y no gasta dinero. Las integraciones reales se prueban en test:smoke.
+      ANTHROPIC_API_KEY: "",
+      DEEPGRAM_API_KEY: "",
+      RESEND_API_KEY: "",
       NEXT_PUBLIC_APP_URL: baseURL,
     },
   },

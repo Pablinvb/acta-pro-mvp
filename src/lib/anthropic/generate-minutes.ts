@@ -20,6 +20,14 @@ function toApiError(error: unknown): ApiError {
     if (error.status === 429) {
       return new ApiError(429, "El servicio de IA está saturado. Espere unos segundos y vuelva a intentarlo.");
     }
+    // Un 400 por saldo no es un fallo del esquema ni de la clave: decirlo
+    // evita buscar el error en el codigo durante una demostracion.
+    if (error.status === 400 && /credit balance/i.test(error.message)) {
+      return new ApiError(
+        402,
+        "La cuenta de Anthropic no tiene saldo. Recargue créditos en console.anthropic.com para generar actas reales.",
+      );
+    }
     if (error.status === 401 || error.status === 403) {
       return new ApiError(502, "La clave de Anthropic fue rechazada. Revise la configuración.");
     }
