@@ -41,7 +41,7 @@ export function NavLink({
         aria-hidden
         className={cn(
           "absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full transition-all",
-          active ? "bg-brand-400" : "bg-transparent",
+          active ? "brand-gradient" : "bg-transparent",
         )}
       />
       {icon ? (

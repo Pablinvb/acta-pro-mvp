@@ -42,7 +42,7 @@ export default async function LoginPage({
         {/* Resplandor de marca detrás del titular. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-40 top-1/4 size-[38rem] rounded-full bg-brand-500/20 blur-[120px]"
+          className="pointer-events-none absolute -right-40 top-1/4 size-[38rem] rounded-full bg-azure-400/20 blur-[120px]"
         />
 
         <div className="relative mx-auto w-full max-w-xl">
@@ -55,9 +55,9 @@ export default async function LoginPage({
 
           <h1 className="mt-10 text-5xl font-extrabold leading-[0.95] tracking-tight sm:text-6xl">
             <span className="block text-ink">ACTA</span>
-            <span className="block text-brand-500">PRO</span>
+            <span className="brand-gradient-text block">PRO</span>
           </h1>
-          <span aria-hidden className="mt-5 block h-1 w-24 rounded-full bg-linear-to-r from-brand-400 to-transparent" />
+          <span aria-hidden className="hairline-gradient mt-5 block h-1 w-28 rounded-full" />
 
           <p className="mt-6 text-2xl font-medium leading-snug text-ink-muted">
             De una reunión a una <span className="text-ink">evidencia institucional</span>

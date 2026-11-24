@@ -10,8 +10,8 @@ export function ActaProMark({ className }: { className?: string }) {
     <svg viewBox="0 0 40 44" role="img" aria-label="ACTA PRO" className={cn("size-9", className)}>
       <defs>
         <linearGradient id="acta-shield" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4d93ff" />
-          <stop offset="100%" stopColor="#10408f" />
+          <stop offset="0%" stopColor="#7fcbf2" />
+          <stop offset="100%" stopColor="#1657c2" />
         </linearGradient>
       </defs>
       <path
@@ -34,7 +34,7 @@ export function ActaProMark({ className }: { className?: string }) {
 export function ActaProWordmark({ className }: { className?: string }) {
   return (
     <span className={cn("text-lg font-extrabold tracking-tight", className)}>
-      <span className="text-ink">ACTA</span> <span className="text-brand-400">PRO</span>
+      <span className="text-ink">ACTA</span> <span className="brand-gradient-text">PRO</span>
     </span>
   );
 }

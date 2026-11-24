@@ -33,6 +33,13 @@
   --color-brand-700: #10408f;
   --color-brand-soft: #12224a;
 
+  /* Azul cielo: segundo extremo del degradado de marca. */
+  --color-azure-200: #b9e2fa;
+  --color-azure-300: #7fcbf2;
+  --color-azure-400: #4fb3e8;
+  --color-azure-500: #2f97d4;
+  --color-azure-600: #1f76ad;
+
   /* Estados */
   --color-verified-400: #4ade80;
   --color-verified-500: #22c55e;
@@ -68,10 +75,12 @@ body {
   -webkit-font-smoothing: antialiased;
   /* Resplandor azul difuso, como en la identidad de marca. */
   background-color: var(--color-canvas-deep);
+  /* Marina abajo, cielo arriba. Los tonos se mantienen oscuros a propósito:
+     el acta se proyecta en aula y el texto blanco debe seguir legible. */
   background-image:
-    radial-gradient(90rem 45rem at 78% -10%, rgba(31, 111, 235, 0.22), transparent 60%),
-    radial-gradient(60rem 40rem at 5% 8%, rgba(16, 64, 143, 0.18), transparent 62%),
-    linear-gradient(180deg, #050b1c 0%, #040915 55%, #030713 100%);
+    radial-gradient(70rem 40rem at 82% -8%, rgba(79, 179, 232, 0.26), transparent 58%),
+    radial-gradient(60rem 42rem at 8% 4%, rgba(47, 151, 212, 0.14), transparent 60%),
+    linear-gradient(170deg, #0f3b63 0%, #0a2645 26%, #06152c 58%, #040d1d 82%, #030713 100%);
   background-attachment: fixed;
 }
 
@@ -93,6 +102,22 @@ body {
   scrollbar-color: var(--color-line-strong) transparent;
 }
 
+@utility brand-gradient {
+  background-image: linear-gradient(110deg, var(--color-brand-600), var(--color-brand-500) 45%, var(--color-azure-400));
+}
+
+/* Texto con el degradado de marca, para titulares. */
+@utility brand-gradient-text {
+  background-image: linear-gradient(100deg, var(--color-brand-400), var(--color-azure-300));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility hairline-gradient {
+  background-image: linear-gradient(90deg, var(--color-azure-400), var(--color-brand-500) 55%, transparent);
+}
+
 @utility glass {
   background-color: color-mix(in oklab, var(--color-surface) 88%, transparent);
   backdrop-filter: blur(12px);
@@ -101,7 +126,7 @@ body {
 /* Resplandor de acento para elementos activos y verificados. */
 @utility glow-brand {
   box-shadow:
-    0 0 0 1px rgba(31, 111, 235, 0.35),
+    0 0 0 1px rgba(79, 179, 232, 0.35),
     0 12px 40px -12px rgba(31, 111, 235, 0.55);
 }
 

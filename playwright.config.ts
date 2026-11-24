@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = Number(process.env.E2E_PORT ?? 3100);
+// Puerto propio: si la prueba compartiera el del servidor de desarrollo,
+// reutilizaría ese proceso y heredaría las claves reales de .env.local,
+// con lo que dejaría de ser determinística.
+const PORT = Number(process.env.E2E_PORT ?? 3101);
 // `localhost` y no `127.0.0.1`: el servidor de desarrollo bloquea los recursos
 // internos servidos a un origen distinto del suyo y la hidratación no ocurre.
 const baseURL = `http://localhost:${PORT}`;
@@ -25,10 +28,16 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `npm run dev -- --port ${PORT}`,
+    // Build de producción, no `next dev`: es lo que corre en Vercel, y
+    // además Next 16 impide levantar un segundo servidor de desarrollo
+    // para el mismo proyecto, lo que hacía fallar la prueba si alguien
+    // tenía el suyo abierto.
+    command: `npm run build && npm run start -- --port ${PORT}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
+    // Nunca se reutiliza un servidor ajeno: el entorno de abajo solo se
+    // aplica cuando Playwright arranca el suyo.
+    reuseExistingServer: false,
+    timeout: 300_000,
     env: {
       DEMO_MODE: "true",
       // La prueba no debe depender del saldo ni de las claves de quien la

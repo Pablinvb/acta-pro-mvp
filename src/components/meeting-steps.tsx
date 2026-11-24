@@ -42,7 +42,7 @@ export function MeetingSteps({
                 className={cn(
                   "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
                   isCurrent
-                    ? "border-brand-400 bg-brand-500 text-white"
+                    ? "brand-gradient border-azure-400 text-white"
                     : unlocked
                       ? "border-brand-500/40 bg-brand-soft text-brand-300"
                       : "border-line bg-surface-inset text-ink-subtle",
@@ -75,7 +75,7 @@ export function MeetingSteps({
               {index < MEETING_STEPS.length - 1 ? (
                 <span
                   aria-hidden
-                  className={cn("h-px w-5", unlocked ? "bg-brand-500/40" : "bg-line")}
+                  className={cn("h-px w-5", unlocked ? "hairline-gradient" : "bg-line")}
                 />
               ) : null}
             </li>
