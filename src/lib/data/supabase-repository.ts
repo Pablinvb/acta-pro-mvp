@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sha256Hex } from "@/lib/pdf/render";
 
 import type { Minutes } from "@/lib/schemas/minutes";
 import type {
@@ -529,12 +530,38 @@ export class SupabaseRepository implements Repository {
   }
 
   async putDocumentFile(path: string, bytes: Uint8Array) {
-    const { error } = await this.admin.storage
-      .from(DOCUMENTS_BUCKET)
-      .upload(path, bytes, { contentType: "application/pdf", upsert: true });
-    if (error) throw new Error(`No se pudo guardar el PDF: ${error.message}`);
+  const expectedHash = sha256Hex(bytes);
+
+  const { error } = await this.admin.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(path, bytes, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+
+  if (!error) {
     return path;
   }
+
+  // Recuperar el archivo existente sin modificarlo.
+  const existing = await this.getDocumentFile(path);
+
+  if (existing) {
+    const existingHash = sha256Hex(existing);
+
+    if (existingHash === expectedHash) {
+      return path;
+    }
+
+    throw new Error(
+      "Conflicto de integridad: existe un PDF diferente en esta ruta."
+    );
+  }
+
+  throw new Error(
+    `No se pudo guardar el PDF: ${error.message}`
+  );
+}
 
   async getDocumentFile(path: string) {
     const { data, error } = await this.admin.storage.from(DOCUMENTS_BUCKET).download(path);
