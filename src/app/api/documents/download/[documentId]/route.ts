@@ -1,5 +1,6 @@
 import { requireApiSession, requireMeetingAccess } from "@/lib/session";
 import { ApiError, toErrorResponse } from "@/lib/api/http";
+import { sha256Hex } from "@/lib/pdf/render";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,12 @@ export async function GET(_request: Request, context: { params: Promise<{ docume
 
     const bytes = await session.repository.getDocumentFile(document.storage_path);
     if (!bytes) throw new ApiError(404, "El archivo no está disponible.");
+    if (sha256Hex(bytes) !== document.sha256) {
+      throw new ApiError(
+         409,
+         "No se pudo verificar la integridad del documento."
+      );
+    }
 
     await session.repository.appendAudit({
       institution_id: session.institution.id,
