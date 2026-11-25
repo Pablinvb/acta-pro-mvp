@@ -67,3 +67,34 @@ describe("código y ruta del documento", () => {
     expect(path).toBe(`${demoInstitution.id}/${demoStudents[0].id}/ACTA-2026-AAAAAAAA-v1.pdf`);
   });
 });
+
+describe("almacenamiento seguro de PDF", () => {
+  const code = "ACTA-2026-AAAAAAAA-v1";
+
+  it("genera rutas diferentes para archivos diferentes", () => {
+    const hashA = sha256Hex("PDF original");
+    const hashB = sha256Hex("PDF modificado");
+
+    expect(
+      buildStoragePath("inst", "student", code, hashA)
+    ).not.toBe(
+      buildStoragePath("inst", "student", code, hashB)
+    );
+  });
+
+  it("genera la misma ruta para archivos idénticos", () => {
+    const hash = sha256Hex("PDF original");
+
+    expect(
+      buildStoragePath("inst", "student", code, hash)
+    ).toBe(
+      buildStoragePath("inst", "student", code, hash)
+    );
+  });
+
+  it("rechaza hashes inválidos", () => {
+    expect(() =>
+      buildStoragePath("inst", "student", code, "invalid")
+    ).toThrow("Hash SHA-256 inválido.");
+  });
+});

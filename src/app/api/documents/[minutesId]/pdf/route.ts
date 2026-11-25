@@ -61,7 +61,12 @@ export async function POST(_request: Request, context: { params: Promise<{ minut
 
     const bytes = new Uint8Array(buffer);
     const fileHash = sha256Hex(bytes);
-    const storagePath = buildStoragePath(detail.institution.id, detail.student.id, documentCode);
+    const storagePath = buildStoragePath(
+      detail.institution.id,
+      detail.student.id,
+      documentCode,
+      fileHash
+    );
 
     await session.repository.putDocumentFile(storagePath, bytes);
     const document = await session.repository.createDocument({

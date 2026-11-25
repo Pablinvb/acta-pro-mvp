@@ -43,6 +43,19 @@ export function buildDocumentCode(detail: MeetingDetail, version: number): strin
   return `ACTA-${year}-${slug}-v${version}`;
 }
 
-export function buildStoragePath(institutionId: string, studentId: string, documentCode: string): string {
-  return `${institutionId}/${studentId}/${documentCode}.pdf`;
+export function buildStoragePath(
+  institutionId: string,
+  studentId: string,
+  documentCode: string,
+  fileHash?: string
+): string {
+  if (fileHash && !/^[a-f0-9]{64}$/.test(fileHash)) {
+    throw new Error("Hash SHA-256 inválido.");
+  }
+
+  const filename = fileHash
+    ? `${documentCode}-${fileHash}.pdf`
+    : `${documentCode}.pdf`;
+
+  return `${institutionId}/${studentId}/${filename}`;
 }
