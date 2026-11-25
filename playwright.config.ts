@@ -40,9 +40,9 @@ export default defineConfig({
     timeout: 300_000,
     env: {
       DEMO_MODE: "true",
-      // La prueba no debe depender del saldo ni de las claves de quien la
-      // ejecuta: se fuerza el camino de demostración, que es determinístico
-      // y no gasta dinero. Las integraciones reales se prueban en test:smoke.
+      NEXT_PUBLIC_SUPABASE_URL: "",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
+      SUPABASE_SERVICE_ROLE_KEY: "",
       ANTHROPIC_API_KEY: "",
       DEEPGRAM_API_KEY: "",
       RESEND_API_KEY: "",
