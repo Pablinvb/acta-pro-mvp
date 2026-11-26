@@ -54,3 +54,10 @@ tokens.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supabase CLI
+supabase/.temp/
+supabase/.branches/
+# Consultas sueltas de Supabase Studio: borradores, no fuente de verdad.
+# Las pruebas reales viven en supabase/tests/security/.
+supabase/snippets/

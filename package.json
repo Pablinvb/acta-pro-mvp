@@ -13,7 +13,9 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:smoke": "vitest run --config vitest.smoke.config.mts",
-    "check:env": "tsx scripts/check-env.ts"
+    "check:env": "tsx scripts/check-env.ts",
+    "test:security": "node scripts/verify-security.mjs",
+    "verify:security": "npm run typecheck && npm run lint && npm run test && npm run test:security"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
@@ -40,6 +42,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "supabase": "3.4.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",
