@@ -66,6 +66,8 @@ async function seedSignedDocument() {
     sha256: "a".repeat(64),
     document_code: "ACTA-2026-TEST0001-v1",
     version: 1,
+    generation_fingerprint: "b".repeat(64),
+    kind: "final",
   });
 }
 

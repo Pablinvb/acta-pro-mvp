@@ -128,6 +128,12 @@ export function MinutesDocument({
       author={institution.name}
       subject="Acta de reunión escolar"
       creator="ACTA PRO"
+      producer="ACTA PRO"
+      // Los metadatos del PDF también se fijan. Si la fecha de creación la
+      // pusiera el reloj, los bytes diferirían en cada generación y el
+      // SHA-256 del archivo dejaría de ser reproducible.
+      creationDate={new Date(generatedAt)}
+      modificationDate={new Date(generatedAt)}
     >
       <Page size="A4" style={styles.page}>
         {!approved ? (

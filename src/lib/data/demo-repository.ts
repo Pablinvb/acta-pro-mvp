@@ -445,12 +445,29 @@ export class DemoRepository implements Repository {
       sha256: input.sha256,
       document_code: input.document_code,
       version: input.version,
+      generation_fingerprint: input.generation_fingerprint,
+      kind: input.kind,
       sent_at: null,
       provider_message_id: null,
       created_at: now(),
     };
     state().documents.push(document);
     return document;
+  }
+
+  async findDocumentByFingerprint(minutesId: string, fingerprint: string) {
+    return (
+      state().documents.find(
+        (d) => d.minutes_id === minutesId && d.generation_fingerprint === fingerprint,
+      ) ?? null
+    );
+  }
+
+  async deleteOrphanDocument(id: string, fingerprint: string) {
+    const store = state();
+    store.documents = store.documents.filter(
+      (d) => !(d.id === id && d.generation_fingerprint === fingerprint && d.sent_at === null),
+    );
   }
 
   async getDocument(id: string) {

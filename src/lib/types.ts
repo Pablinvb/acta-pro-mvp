@@ -128,6 +128,8 @@ export interface Signature {
   acceptance_text_version: string;
 }
 
+export type DocumentKind = "preview" | "final";
+
 export interface DocumentRecord {
   id: string;
   minutes_id: string;
@@ -136,6 +138,14 @@ export interface DocumentRecord {
   sha256: string;
   document_code: string;
   version: number;
+  /**
+   * Huella de los datos que produjeron el PDF. No es el hash del archivo: los
+   * bytes cambian en cada generacion porque el documento incrusta la fecha.
+   * Null en los documentos anteriores a la idempotencia.
+   */
+  generation_fingerprint: string | null;
+  /** `preview` sale de un borrador y lleva la banda BORRADOR. */
+  kind: DocumentKind;
   sent_at: string | null;
   provider_message_id: string | null;
   created_at: string;

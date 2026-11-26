@@ -2,6 +2,7 @@ import type { Minutes } from "@/lib/schemas/minutes";
 import type {
   AuditAction,
   AuditLog,
+  DocumentKind,
   CommitmentStatus,
   CommitmentTracking,
   CommitmentWithContext,
@@ -94,6 +95,8 @@ export interface NewDocumentInput {
   sha256: string;
   document_code: string;
   version: number;
+  generation_fingerprint: string;
+  kind: DocumentKind;
 }
 
 export interface AuditInput {
@@ -166,6 +169,24 @@ export interface Repository {
   signMinutes(input: SignMinutesInput): Promise<SignMinutesResult>;
 
   createDocument(input: NewDocumentInput): Promise<DocumentRecord>;
+  /**
+   * Documento ya generado para exactamente estos datos de entrada, si existe.
+   * Es lo que evita fabricar un duplicado cuando nada ha cambiado.
+   */
+  findDocumentByFingerprint(
+    minutesId: string,
+    fingerprint: string,
+  ): Promise<DocumentRecord | null>;
+  /**
+   * Compensación: deshace un registro recién creado cuando el archivo no se
+   * pudo guardar, para no dejar una fila que apunte a un PDF inexistente.
+   *
+   * Exige la huella y solo alcanza a documentos sin enviar, de modo que no
+   * pueda borrar un acta ya entregada ni un registro ajeno a esta generación.
+   * Los documentos son evidencia: no hay borrado para el usuario, solo esta
+   * reparación del servidor.
+   */
+  deleteOrphanDocument(id: string, fingerprint: string): Promise<void>;
   getDocument(id: string): Promise<DocumentRecord | null>;
   updateDocument(id: string, patch: Partial<DocumentRecord>): Promise<DocumentRecord>;
   listDocuments(institutionId: string, filters?: { studentId?: string }): Promise<DocumentListItem[]>;

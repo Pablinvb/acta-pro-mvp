@@ -427,6 +427,29 @@ export class SupabaseRepository implements Repository {
     return unwrap(result, "No se pudo registrar el documento") as DocumentRecord;
   }
 
+  async findDocumentByFingerprint(minutesId: string, fingerprint: string) {
+    const { data } = await this.db
+      .from("documents")
+      .select("*")
+      .eq("minutes_id", minutesId)
+      .eq("generation_fingerprint", fingerprint)
+      .maybeSingle();
+    return (data as DocumentRecord) ?? null;
+  }
+
+  async deleteOrphanDocument(id: string, fingerprint: string) {
+    // Con el cliente de usuario esto no borraría nada: `documents` no tiene
+    // política de DELETE, a propósito. La reparación la hace el servidor, y se
+    // acota por huella y por "sin enviar" para que no pueda ir más lejos.
+    const { error } = await this.admin
+      .from("documents")
+      .delete()
+      .eq("id", id)
+      .eq("generation_fingerprint", fingerprint)
+      .is("sent_at", null);
+    if (error) throw new Error(`No se pudo deshacer el documento: ${error.message}`);
+  }
+
   async getDocument(id: string) {
     const { data } = await this.db.from("documents").select("*").eq("id", id).maybeSingle();
     return (data as DocumentRecord) ?? null;
