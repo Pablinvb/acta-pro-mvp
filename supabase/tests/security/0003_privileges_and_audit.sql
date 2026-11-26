@@ -95,6 +95,25 @@ SELECT pg_temp.expect_failure('G2 TRUNCATE sobre meetings',
 SELECT pg_temp.expect_failure('G3 TRUNCATE sobre minutes',
   $q$TRUNCATE public.minutes$q$);
 
+-- Las tres anteriores no bastan, y conviene decir por que. `meetings` y
+-- `minutes` estan referenciadas por claves foraneas, de modo que su TRUNCATE
+-- falla por eso aunque el privilegio estuviera concedido: pasarian igual. Se
+-- comprobo devolviendo el privilegio en la base local y repitiendo la suite,
+-- y solo G1 -sobre una tabla sin referencias- lo delato.
+--
+-- La comprobacion que no admite falsos aprobados es mirar el privilegio en si.
+SELECT pg_temp.expect('G6 authenticated no tiene TRUNCATE en ninguna tabla',
+  (SELECT count(*) = 0
+   FROM pg_class c
+   WHERE c.relnamespace = 'public'::regnamespace
+     AND c.relkind = 'r'
+     AND has_table_privilege('authenticated', c.oid, 'TRUNCATE')));
+
+SELECT pg_temp.expect('G7 anon no tiene ningun privilegio en public',
+  (SELECT count(*) = 0
+   FROM information_schema.role_table_grants
+   WHERE grantee = 'anon' AND table_schema = 'public'));
+
 SELECT pg_temp.expect_failure('G4 escribir en profiles',
   $q$UPDATE public.profiles SET role='admin'
      WHERE id='d1000000-0000-4000-8000-000000000001'$q$);

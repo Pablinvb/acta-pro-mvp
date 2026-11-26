@@ -61,3 +61,7 @@ supabase/.branches/
 # Consultas sueltas de Supabase Studio: borradores, no fuente de verdad.
 # Las pruebas reales viven en supabase/tests/security/.
 supabase/snippets/
+
+# Los respaldos contienen datos personales: nunca bajo control de versiones.
+acta-pro-respaldos/
+respaldos/
