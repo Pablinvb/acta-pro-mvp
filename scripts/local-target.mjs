@@ -12,6 +12,17 @@ export function run(cmd, args, options = {}) {
 }
 
 function findLocalContainer() {
+  // Permite dirigir las pruebas a otra pila local, como la desechable de la
+  // validacion de instalacion limpia. El nombre se comprueba igual: tiene que
+  // ser un contenedor de Supabase y sus puertos tienen que ser locales.
+  const named = process.env.ACTA_DB_CONTAINER;
+  if (named) {
+    if (!named.startsWith("supabase_db_")) {
+      throw new Error(`ACTA_DB_CONTAINER=${named} no es un contenedor de Supabase.`);
+    }
+    return named;
+  }
+
   let names;
   try {
     names = run("docker", ["ps", "--format", "{{.Names}}"]).split(/\r?\n/);

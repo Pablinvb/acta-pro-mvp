@@ -24,8 +24,33 @@ export interface LocalStack {
 
 let cached: LocalStack | null = null;
 
+/** Comprobacion explicita de destino: solo direcciones de esta maquina. */
+function assertLocal(apiUrl: string) {
+  const host = new URL(apiUrl).hostname;
+  if (!["127.0.0.1", "localhost", "::1", "0.0.0.0"].includes(host)) {
+    throw new Error(`El destino ${host} no es local. Abortado.`);
+  }
+}
+
 export function localStack(): LocalStack {
   if (cached) return cached;
+
+  // Permite apuntar a otra pila local -por ejemplo la desechable de la
+  // validacion de instalacion limpia- sin tocar el proyecto. Se exige el
+  // conjunto completo para que no se mezclen a medias dos pilas distintas.
+  const override = process.env.ACTA_TEST_API_URL;
+  if (override) {
+    const anonKey = process.env.ACTA_TEST_ANON_KEY;
+    const serviceKey = process.env.ACTA_TEST_SERVICE_KEY;
+    if (!anonKey || !serviceKey) {
+      throw new Error(
+        "ACTA_TEST_API_URL requiere tambien ACTA_TEST_ANON_KEY y ACTA_TEST_SERVICE_KEY.",
+      );
+    }
+    cached = { apiUrl: override, anonKey, serviceKey };
+    assertLocal(cached.apiUrl);
+    return cached;
+  }
 
   let raw: string;
   try {
@@ -58,12 +83,7 @@ export function localStack(): LocalStack {
     throw new Error("`supabase status` no devolvió la URL y las claves del stack local.");
   }
 
-  // Comprobación explícita de destino. Si esto no es una dirección de esta
-  // máquina, no se ejecuta nada.
-  const host = new URL(apiUrl).hostname;
-  if (!["127.0.0.1", "localhost", "::1", "0.0.0.0"].includes(host)) {
-    throw new Error(`El destino ${host} no es local. Abortado.`);
-  }
+  assertLocal(apiUrl);
 
   cached = { apiUrl, anonKey, serviceKey };
   return cached;
@@ -241,6 +261,14 @@ COMMIT;
 export const DOCUMENTS_BUCKET = "acta-documents";
 
 function localContainer() {
+  const named = process.env.ACTA_DB_CONTAINER;
+  if (named) {
+    if (!named.startsWith("supabase_db_")) {
+      throw new Error(`ACTA_DB_CONTAINER=${named} no es un contenedor de Supabase.`);
+    }
+    return named;
+  }
+
   const container = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" })
     .split(/\r?\n/)
     .map((n) => n.trim())
