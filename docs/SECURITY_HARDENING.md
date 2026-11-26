@@ -1,6 +1,7 @@
 # Arquitectura de seguridad de ACTA PRO
 
-Estado: rama `security/hardening`, validado contra Supabase local.
+Estado: rama `security/hardening`, validado contra Supabase local y **aplicado y
+verificado en el proyecto remoto**.
 Última actualización: 2026-11-26.
 
 ---
@@ -29,7 +30,7 @@ revocado a `PUBLIC` y a `anon`; solo `authenticated` y `service_role` tienen
 con su esquema, de modo que no pueden ser secuestradas creando objetos
 homónimos en un esquema anterior del `search_path`.
 
-Las 12 funciones del esquema privado, y para qué sirve cada una:
+Las 10 funciones del esquema privado, y para qué sirve cada una:
 
 | Función | Para qué |
 | --- | --- |
@@ -160,7 +161,7 @@ El hallazgo más grave de esta fase: **todas las tablas concedían `TRUNCATE` a
 correctas y aun así el historial de auditoría era borrable por cualquier
 sesión. Procede de la exposición automática de tablas nuevas de Supabase.
 
-Estado actual **en la base local**:
+Estado actual, **idéntico en la base local y en el proyecto remoto**:
 
 | Rol | Privilegios en `public` |
 | --- | --- |
@@ -168,22 +169,24 @@ Estado actual **en la base local**:
 | `authenticated` | Lectura según RLS; escritura solo en `meetings`, `meeting_participants`, `transcript_segments`, `minutes`, `documents`, `commitment_tracking` y `audit_logs` (solo `INSERT`) |
 | `service_role` | Almacenamiento y `google_credentials` |
 
-### En el proyecto remoto esto todavía no es así
+### El remoto ya está así
 
-El volcado del esquema remoto del 2026-11-26 muestra `GRANT ALL` para `anon` y
-`authenticated` en las 28 tablas de `public` y del esquema archivado. Conviene
-decir con precisión hasta dónde llega el riesgo, sin exagerarlo ni minimizarlo:
+Hasta el 2026-11-26 no lo estaba: el volcado mostraba `GRANT ALL` para `anon` y
+`authenticated` en las 28 tablas de `public` y del esquema archivado. Convenía
+decir con precisión hasta dónde llegaba el riesgo:
 
 - **Concedido en PostgreSQL**: sí, `TRUNCATE` incluido.
 - **Alcanzable con la clave publicable**: no. PostgREST no tiene forma de
-  expresar `TRUNCATE`, y el remoto no expone ninguna función invocable.
+  expresar `TRUNCATE`, y el remoto no exponía ninguna función invocable.
 
-No es una puerta abierta: es una puerta sin cerradura. Se vuelve aprovechable en
-cuanto aparezca cualquier vía que ejecute SQL con esos roles —una función con
-SQL dinámico, una función `SECURITY DEFINER` sin `search_path` fijo, acceso
-directo a la base—. La corrección está preparada, aislada del resto y pendiente
-de autorización:
-[`supabase/fixes/0001_revoke_truncate.sql`](../supabase/fixes/0001_revoke_truncate.sql).
+No era una puerta abierta: era una puerta sin cerradura, aprovechable en cuanto
+apareciera cualquier vía que ejecutara SQL con esos roles. La migración
+`20261126031630` la cerró al aplicarse, y la comparación posterior de la matriz
+de concesiones dio **27 sentencias `GRANT` a cada lado, idénticas**. La
+corrección independiente
+[`supabase/fixes/0001_revoke_truncate.sql`](../supabase/fixes/0001_revoke_truncate.sql)
+quedó sin usar, y se conserva por si la exposición automática de una tabla nueva
+volviera a traer el privilegio.
 
 Se comprobó que el privilegio no hace falta: la aplicación no emite `TRUNCATE`
 en ningún punto. Las únicas apariciones de esa palabra en el código son clases
@@ -222,9 +225,17 @@ transcripciones, ni imágenes de firma, ni cuerpos de correo.
 - No hay Content Security Policy con nonces.
 - Los textos de consentimiento y aceptación son borradores institucionales
   **pendientes de revisión jurídica**.
-- **Todo lo descrito en esta página está vivo en la base local, no en el
-  proyecto remoto.** Allí faltan seis migraciones. Detalle en
+- **Todo lo descrito en esta página está vivo en las dos bases**, local y
+  remota, desde el 2026-11-26. Detalle y verificaciones en
   [`SUPABASE_MIGRATION_HISTORY.md`](SUPABASE_MIGRATION_HISTORY.md).
+- **La firma correcta no se ha ejercitado nunca contra el proyecto remoto.**
+  Desde `signed` la única transición permitida es `sent`, y las guardas de
+  finalización vigilan también el `DELETE`: una firma de prueba quedaría para
+  siempre en la base de la institución y allí no hay forma de desactivar un
+  disparador para retirarla. Contra el remoto se comprobó el **rechazo**, que no
+  deja rastro; la firma correcta está demostrada sobre la base local, cuyo
+  esquema y cuyos privilegios son idénticos. La primera firma real será la
+  primera firma de verdad.
 - La reproducibilidad de los bytes del PDF depende de que `@react-pdf/renderer`
   siga siendo determinista con la fecha fijada. Hay una prueba que lo
   comprueba sobre el archivo real, de modo que una actualización que lo rompa

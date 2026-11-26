@@ -12,7 +12,16 @@ Cada corrección trae su reversión en un archivo hermano.
 
 | Corrección | Qué hace | Estado |
 | --- | --- | --- |
-| [`0001_revoke_truncate.sql`](0001_revoke_truncate.sql) | Retira `TRUNCATE` de `anon` y `authenticated` | **Pendiente de autorización** |
+| [`0001_revoke_truncate.sql`](0001_revoke_truncate.sql) | Retira `TRUNCATE` de `anon` y `authenticated` | **No ejecutada: ya no hace falta** |
+
+> **Al día 2026-11-26.** La migración `20261126031630` se aplicó al proyecto
+> remoto y retiró el privilegio por su cuenta. El volcado posterior no encuentra
+> **ninguna** concesión de `TRUNCATE`, de modo que esta corrección no se ejecutó
+> y hoy no haría nada: es exactamente lo que anticipaba la sección de
+> compatibilidad de más abajo. Se conserva porque la condición puede reaparecer
+> —la exposición automática de tablas nuevas de Supabase concede privilegios a
+> los roles de la Data API sin `GRANT` explícito—, y entonces volverá a ser el
+> camino corto para cerrarla sin arrastrar el historial.
 
 ---
 

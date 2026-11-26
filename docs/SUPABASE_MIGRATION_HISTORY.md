@@ -1,36 +1,45 @@
-# Historial de migraciones y divergencia con el proyecto remoto
+# Historial de migraciones y estado del proyecto remoto
 
-Última verificación: 2026-11-26, con `supabase migration list --remote` y
-`supabase db dump --remote` (ambos de solo lectura).
+Última verificación: 2026-11-26, después de sincronizar, con
+`supabase migration list --remote`, `supabase db dump --remote`,
+`supabase db diff --remote` y `supabase db lint --remote`.
 
-> **Corrección respecto a la versión anterior de esta página.** Decía que al
-> remoto le faltaban cuatro migraciones y que `20261125163219_security_hardening`
-> constaba aplicada. Ninguna de las dos cosas es cierta. El volcado del esquema
-> remoto y el historial lo desmienten: **faltan seis**, y la de endurecimiento
-> es una de ellas. Se deja escrita la corrección en lugar de reescribir la
-> página en silencio, porque el error afectaba a la decisión de qué aplicar.
+> **Historial de esta página.** Una versión anterior decía que al remoto le
+> faltaban cuatro migraciones y que `20261125163219_security_hardening` constaba
+> aplicada. Ninguna de las dos cosas era cierta: faltaban seis, y la de
+> endurecimiento era una de ellas. Queda escrito en lugar de reescribirse en
+> silencio, porque el error afectaba a la decisión de qué aplicar.
 
 ---
 
 ## 1. Estado real
 
-| # | Migración | Archivo local | Historial remoto | Esquema remoto |
+**Las nueve migraciones están aplicadas en el proyecto remoto.** Las seis que
+faltaban se aplicaron el 2026-11-26 con `supabase migration up --remote`, en una
+sola pasada y en orden de identificador.
+
+| # | Migración | Archivo local | Historial remoto | Aplicada |
 | --- | --- | --- | --- | --- |
-| 1 | `20261125032101_init` | sí | **sí** | parcial, ver §3 |
-| 2 | `20261125032107_storage` | sí | **sí** | presente |
-| 3 | `20261125032110_commitment_tracking` | sí | **sí** | presente |
-| 4 | `20261125163219_security_hardening` | sí | no | **ausente** |
-| 5 | `20261125212938_document_and_meeting_integrity` | sí | no | **ausente** |
-| 6 | `20261126025018_atomic_signing_and_finalization` | sí | no | **ausente** |
-| 7 | `20261126030401_harden_signature_writes` | sí | no | **ausente** |
-| 8 | `20261126031630_least_privilege_and_audit_integrity` | sí | no | **ausente** |
-| 9 | `20261126033310_document_generation_idempotency` | sí | no | **ausente** |
+| 1 | `20261125032101_init` | sí | sí | 2026-11-25 |
+| 2 | `20261125032107_storage` | sí | sí | 2026-11-25 |
+| 3 | `20261125032110_commitment_tracking` | sí | sí | 2026-11-25 |
+| 4 | `20261125163219_security_hardening` | sí | sí | **2026-11-26** |
+| 5 | `20261125212938_document_and_meeting_integrity` | sí | sí | **2026-11-26** |
+| 6 | `20261126025018_atomic_signing_and_finalization` | sí | sí | **2026-11-26** |
+| 7 | `20261126030401_harden_signature_writes` | sí | sí | **2026-11-26** |
+| 8 | `20261126031630_least_privilege_and_audit_integrity` | sí | sí | **2026-11-26** |
+| 9 | `20261126033310_document_generation_idempotency` | sí | sí | **2026-11-26** |
 
-**9 migraciones locales, 3 aplicadas en remoto, 6 pendientes.**
+**9 migraciones locales, 9 aplicadas en remoto, 0 pendientes.**
 
-> Que coincidan los identificadores no prueba que el esquema esté sincronizado.
-> Aquí no coinciden, y además hay divergencia de contenido en la primera, que sí
-> figura en ambos lados (§2).
+Comprobado después: `db diff --remote` sin diferencias y `db lint --remote` sin
+avisos, sobre `public` y `acta_private`.
+
+> Que coincidan los identificadores no probaría por sí solo que el esquema esté
+> sincronizado. Lo que lo prueba es el volcado comparado objeto por objeto (§3) y
+> la matriz de privilegios, que resultó **idéntica** a la de la base local.
+> Sigue habiendo una divergencia de contenido en la primera migración, anterior
+> a todo esto, y conviene conocerla (§2).
 
 ## 2. La primera migración no es idéntica a su original remota
 
@@ -46,43 +55,55 @@ existen. **No son el mismo archivo.**
 Las copias históricas se conservan a propósito y no deben alterarse para
 disimular la diferencia: documentan lo que realmente se ejecutó en remoto.
 
-## 3. Qué le falta al esquema remoto
+## 3. Lo que le faltaba al esquema remoto, y cómo está ahora
 
-Según `supabase db dump --remote` del 2026-11-26, el proyecto
-`lmscltbyehofrwtddbfn` tiene:
+Comparación con `supabase db dump --remote`, antes y después de aplicar las seis
+migraciones. La columna «antes» es el estado con el que el proyecto llevaba
+funcionando.
 
-| Objeto | Local | Remoto |
-| --- | --- | --- |
-| Disparadores de protección en `public` | 7 | **0** |
-| Funciones en `acta_private` | 12 | **2** (`can_access_meeting`, `current_institution_id`) |
-| `public.sign_minutes` | sí | **no** |
-| Restricciones `CHECK` de integridad documental | sí | **no** (`documents_sha256_format_check` ausente) |
-| Índice único de firma por rol | sí | **no** |
-| Índice único de huella de generación | sí | **no** |
-| `TRUNCATE` para `anon` y `authenticated` | revocado | **concedido en las 28 tablas** |
-| Privilegios de `anon` en `public` | ninguno | **`GRANT ALL` en todas las tablas** |
+| Objeto | Local | Remoto antes | Remoto ahora |
+| --- | --- | --- | --- |
+| Disparadores de protección en `public` | 7 | **0** | **7** |
+| Funciones en `acta_private` | 10 | **2** | **10** |
+| `public.sign_minutes` | sí | **no** | **sí** |
+| Restricciones `CHECK` en `public` | 25 | 23 | **25** |
+| Columnas `generation_fingerprint` y `kind` | sí | **no** | **sí** |
+| Índice único de huella de generación | sí | **no** | **sí** |
+| `TRUNCATE` para `anon` y `authenticated` | revocado | **concedido en 28 tablas** | **revocado** |
+| Privilegios de `anon` en `public` | ninguno | **`GRANT ALL`** | **ninguno** |
+| Escritura directa en `signatures` | revocada | concedida | **revocada** |
+| `UPDATE`/`DELETE` sobre `audit_logs` | revocados | concedidos | **revocados** |
 
-Es decir: **el endurecimiento de seguridad no está vivo en producción.** La
-firma no es atómica allí, una reunión puede alcanzar `signed` sin firmas, y
-`audit_logs` es vaciable por cualquier rol de la Data API a nivel de
-PostgreSQL.
+La matriz completa de concesiones de las 14 tablas resultó **idéntica** a la de
+la base local, línea por línea: 27 sentencias `GRANT` a cada lado.
+
+> **Dos correcciones de método.** La primera: `supabase db dump` emite
+> `CREATE OR REPLACE TRIGGER`, no `CREATE TRIGGER`, de modo que buscar la segunda
+> forma da cero disparadores incluso en una base que los tiene todos. El recuento
+> de cero en el remoto era correcto —las migraciones que los crean no estaban
+> aplicadas, y eso lo prueba el historial—, pero la orden que lo midió no podía
+> haber encontrado otra cosa. La segunda: esta página decía 12 funciones en
+> `acta_private` y la tabla de [`SECURITY_HARDENING.md`](SECURITY_HARDENING.md)
+> enumera 10. Son **10**; el 12 era un recuento mal copiado.
 
 ### El matiz sobre `TRUNCATE`, con precisión
 
-`GRANT ALL` incluye `TRUNCATE`, y `TRUNCATE` no pasa por RLS. Pero hay que
-separar dos cosas:
+`GRANT ALL` incluía `TRUNCATE`, y `TRUNCATE` no pasa por RLS. Convenía separar
+dos cosas, y conviene seguir separándolas:
 
-- **Concedido en PostgreSQL**: sí, en las 28 tablas de `public` y del esquema
-  archivado, para `anon` y `authenticated`.
-- **Alcanzable con la clave publicable**: no. PostgREST no tiene forma de
-  expresar `TRUNCATE`, y la auditoría confirmó que el remoto **no expone
-  ninguna función invocable** (`/rpc/` vacío), de modo que hoy no existe una vía
-  para ejecutarlo desde la API de datos.
+- **Concedido en PostgreSQL**: lo estaba, en las 28 tablas de `public` y del
+  esquema archivado, para `anon` y `authenticated`.
+- **Alcanzable con la clave publicable**: no lo estaba. PostgREST no tiene forma
+  de expresar `TRUNCATE`, y la auditoría confirmó que el remoto no exponía
+  ninguna función invocable (`/rpc/` vacío).
 
-No es una puerta abierta: es una puerta sin cerradura. Se vuelve aprovechable
-en cuanto aparezca cualquier camino que ejecute SQL con esos roles. La
-corrección está preparada y aislada en
-[`supabase/fixes/0001_revoke_truncate.sql`](../supabase/fixes/0001_revoke_truncate.sql).
+No era una puerta abierta: era una puerta sin cerradura. La migración
+`20261126031630` la cerró al aplicarse, y el volcado posterior no encuentra ni
+una concesión de `TRUNCATE`. Por eso la corrección independiente
+[`supabase/fixes/0001_revoke_truncate.sql`](../supabase/fixes/0001_revoke_truncate.sql)
+**ya no hace falta**: su propio aviso lo anticipaba —si las migraciones iban
+primero, encontraría cero concesiones y no haría nada—. Se conserva por si
+reapareciera la condición, por ejemplo al exponerse tablas nuevas.
 
 ## 4. Los enums heredados: ya no es una pregunta abierta
 

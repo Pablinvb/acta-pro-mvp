@@ -30,12 +30,30 @@ Destino: **Vercel** para la aplicación y **Supabase** para datos y archivos.
 
 ### 1.2 Ejecutar el esquema
 
-En **SQL Editor**, pegue y ejecute **en este orden**:
+> **Si va a usar el proyecto `lmscltbyehofrwtddbfn`, este paso ya está hecho.**
+> Sus nueve migraciones se aplicaron el 2026-11-26 y están verificadas; detalle
+> en [`SUPABASE_MIGRATION_HISTORY.md`](SUPABASE_MIGRATION_HISTORY.md). Pase al
+> paso 1.4.
 
-1. `supabase/migrations/0001_init.sql`
-2. `supabase/migrations/0002_storage.sql`
-3. `supabase/migrations/0003_commitment_tracking.sql`
-4. `supabase/seed.sql`
+Para un proyecto nuevo, el esquema **no se pega a mano en el SQL Editor**: son
+nueve migraciones y el orden importa. Enlace el proyecto y aplique el historial:
+
+```bash
+node node_modules/supabase/dist/supabase.js link --project-ref SU-REFERENCIA
+```
+
+```bash
+node node_modules/supabase/dist/supabase.js migration up --remote
+```
+
+Con `migration up`, **no con `db push`**: `db push` compara esquemas y puede
+generar sentencias no previstas; `migration up` aplica los archivos en orden,
+los mismos que se han probado.
+
+Los datos de demostración van después, y en este orden: **primero** la cuenta de
+autenticación del paso 1.3, **luego** `supabase/seed.sql` pegado en el SQL
+Editor. El seed **no es autosuficiente** —necesita que esa cuenta exista— y su
+propio encabezado da la sentencia exacta que hace falta.
 
 ### 1.3 Crear la cuenta docente
 

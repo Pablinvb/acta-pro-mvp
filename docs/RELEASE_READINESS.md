@@ -1,7 +1,9 @@
 # Preparación para publicación
 
-Rama `security/hardening`, 2026-11-26. Publicada en GitHub; **nada desplegado y
-nada aplicado en el proyecto remoto.**
+Rama `security/hardening`, 2026-11-26. Publicada en GitHub, con Pull Request
+abierto y **sin fusionar**. El esquema del proyecto remoto **está sincronizado**:
+las nueve migraciones aplicadas y verificadas. **La aplicación no está
+desplegada**, porque no existe entorno de producción (§8).
 
 ---
 
@@ -15,7 +17,7 @@ nada aplicado en el proyecto remoto.**
 | Firma atómica | **Cumplido** — `sign_minutes`, transacción única con bloqueo |
 | No finalizar sin firmas obligatorias | **Cumplido** — verificado en `INSERT` y `UPDATE` |
 | Actas y firmas definitivas protegidas | **Cumplido** |
-| Permisos con aislamiento institucional | **Cumplido** en local — `anon` sin superficie, `TRUNCATE` revocado |
+| Permisos con aislamiento institucional | **Cumplido** en local y en remoto — `anon` sin superficie, `TRUNCATE` revocado |
 | Sin duplicaciones documentales indebidas | **Cumplido** — huella determinista e índice único |
 | Verificaciones de integridad PDF | **Cumplido** — con pruebas automatizadas sobre el archivo real |
 | Pruebas de concurrencia | **Cumplido** — dos conexiones reales, 18 / 18 |
@@ -25,12 +27,14 @@ nada aplicado en el proyecto remoto.**
 | Sin vulnerabilidades conocidas sin evaluar | **Cumplido** — `npm audit`: 0, también con `--omit=dev` |
 | Sin credenciales expuestas | **Cumplido** — ver §3 |
 | Cambios documentados | **Cumplido** |
-| Procedimiento de respaldo | **Cumplido** — ejecutado y verificado, ver §5 |
-| Corrección de `TRUNCATE` en remoto | **Preparada, pendiente de autorización** — ver §7 |
-| Esquema remoto sincronizado | **Pendiente de autorización** — faltan 6 migraciones, ver §6 |
+| Procedimiento de respaldo | **Cumplido** — ejecutado, verificado y **restaurado** en ensayo, ver §5 |
+| Corrección de `TRUNCATE` en remoto | **Innecesaria** — la hizo la migración 5, ver §7 |
+| Esquema remoto sincronizado | **Cumplido** — 9 de 9 aplicadas y verificadas, ver §6 |
+| Verificación de comportamiento en remoto | **Cumplido** — 16 / 16 con residuo cero, ver §6 |
+| Aplicación desplegada | **Bloqueado** — no existe entorno de producción, ver §8 |
 
-**La fase local está cerrada.** Lo que queda son decisiones sobre el proyecto
-remoto, y ninguna se ha tomado por cuenta propia.
+**La fase local está cerrada y el esquema remoto está al día.** Lo único que
+falta para que ACTA PRO sea utilizable es un servidor que sirva la aplicación.
 
 ## 2. Resultados de las pruebas
 
@@ -41,6 +45,8 @@ remoto, y ninguna se ha tomado por cuenta propia.
 | Concurrencia (dos conexiones reales) | **18 / 18** |
 | Integración contra Supabase local | **33 / 33** en 3 archivos |
 | Instalación limpia (pila desechable) | **16 / 16** |
+| Ensayo de restauración del respaldo | **9 / 9** sobre un Supabase nuevo y vacío |
+| Verificación contra el proyecto remoto | **16 / 16**, residuo cero |
 | E2E (Playwright, modo demostración) | **1 / 1** |
 | `typecheck` · `lint` · `build` | Sin errores |
 | `npm audit` · `npm audit --omit=dev` | 0 vulnerabilidades |
@@ -142,6 +148,35 @@ detrás.
 El propio `backup-remote.mjs` coteja además, contra el proyecto remoto, que el
 `SHA-256` de cada archivo descargado coincide con el registrado en la fila.
 
+### Y aun así eso no demuestra que se pueda restaurar
+
+Piezas completas y hashes coincidentes dicen que el respaldo está **íntegro**,
+no que sirva. Lo segundo solo lo demuestra restaurarlo, y para eso está
+[`scripts/verify-restore.mjs`](../scripts/verify-restore.mjs): levanta un
+Supabase **nuevo y vacío** en una pila local desechable —lo que se crearía en una
+recuperación real—, carga el volcado y cuenta lo que queda dentro. Resultado del
+2026-11-26: **9 de 9**, con un inventario idéntico, tabla por tabla, al del
+proyecto remoto.
+
+```bash
+node scripts/verify-restore.mjs ../acta-pro-respaldos/<marca-de-tiempo>
+```
+
+El ensayo enseñó dos cosas que no se habrían visto de otro modo:
+
+- **El volcado no se restaura sobre un PostgreSQL pelado.** Da por hecho una base
+  ya preparada por Supabase: falla por `extensions`, luego por `auth`, luego por
+  la publicación `supabase_realtime`. La restauración real es sobre un proyecto
+  nuevo de Supabase, no sobre un Postgres cualquiera.
+- **Las tablas internas de `auth` y `storage` no son restaurables con SQL.** La
+  versión alojada va por delante de la que empaqueta el CLI —`auth.custom_oauth_providers`
+  tiene allí una columna que aquí no existe— y `storage` pertenece a
+  `supabase_storage_admin`, que ni el superusuario local puede escribir. Eso no
+  dice nada malo del respaldo: en una recuperación esas tablas las recrea la
+  plataforma, las cuentas se vuelven a crear a mano —las contraseñas no son
+  recuperables— y los archivos se vuelven a subir desde `almacenamiento/`. Lo que
+  hay que demostrar restaurable es lo de la institución, y lo está.
+
 ### Un respaldo incompleto se declara incompleto
 
 En una ejecución con la red caída, cuatro de los nueve pasos fallaron y el guion
@@ -159,12 +194,12 @@ proteger no es un respaldo: copie el directorio a otro soporte.
 
 ## 6. Sincronización del esquema remoto
 
-**No ejecutado. Requiere su autorización explícita.**
+**Ejecutada el 2026-11-26.** El proyecto `lmscltbyehofrwtddbfn` tiene las
+**nueve** migraciones aplicadas y ninguna pendiente. Lo que sigue se conserva
+como registro de lo que se hizo y en qué orden, porque una operación sobre
+producción vale lo que valga su rastro.
 
-Al proyecto `lmscltbyehofrwtddbfn` le faltan **seis** migraciones. Las tres
-primeras del historial sí están aplicadas.
-
-### Las seis, en orden
+### Las seis que faltaban, en el orden en que se aplicaron
 
 | Orden | Identificador | Qué introduce | Riesgo |
 | --- | --- | --- | --- |
@@ -251,63 +286,75 @@ sobre `signatures`, que es la vía que usa el código anterior al commit
 rama, **la firma deja de funcionar**: la versión desplegada intentará escribir
 directamente y recibirá `permission denied`.
 
-Hay dos órdenes seguros. Los dos empiezan igual:
+> **Corrección a la recomendación anterior de esta página.** Aquí se proponía un
+> «Camino A» que aplicaba las migraciones 1 a 3, desplegaba y dejaba 4, 5 y 6
+> para después. **Era incorrecto.** El generador de PDF de esta rama consulta e
+> inserta `generation_fingerprint` y `kind`, columnas que añade la migración
+> **6**: desplegado sobre un esquema sin ellas, PostgREST rechaza la consulta y
+> **la generación del acta deja de funcionar**. El camino A protegía la firma y
+> dejaba ciego el documento. Lo detectó una revisión independiente del código, no
+> estas pruebas, y conviene decirlo porque cambia la recomendación.
 
-1. Respaldo verificado.
-2. Verificación de compatibilidad de datos.
+No existe un orden que mantenga a la vez la firma de la versión antigua y el
+documento de la nueva: una necesita el permiso que la migración 4 retira, el otro
+necesita la columna que la migración 6 añade. Por tanto hace falta **una ventana
+de mantenimiento**: aplicar las seis migraciones y activar la versión nueva
+después, sin reabrir el acceso hasta comprobar que funciona.
 
-Y a partir de ahí:
+**Lo que se hizo el 2026-11-26.** La ventana resultó ser gratuita: el proyecto
+**no tenía ninguna versión desplegada** —cero despliegues y cero entornos en
+GitHub, ninguna integración con Vercel, `NEXT_PUBLIC_APP_URL` apuntando a
+`localhost`—, de modo que no había versión antigua que romper ni acceso que
+cerrar. Se aplicaron las seis de una vez con `migration up --remote`, en orden de
+identificador, con el respaldo verificado y restaurado de antemano y sin
+escrituras concurrentes (la última escritura remota databa de 35 horas antes).
 
-**Camino A — recomendado, sin ventana sin firma.**
+### Verificaciones posteriores, con lo que devolvieron
 
-3. Aplicar las migraciones **1 a 3**. Solo añaden objetos: esquema privado,
-   funciones, políticas, restricciones, disparadores y `sign_minutes`. No
-   retiran ningún permiso, de modo que la aplicación desplegada sigue
-   funcionando exactamente igual.
-4. Desplegar la aplicación de esta rama. Con `sign_minutes` ya creada, firma
-   por la vía nueva desde el primer momento.
-5. Aplicar las migraciones **4, 5 y 6**. La retirada de permisos llega cuando
-   ya nadie usa la vía antigua.
-6. Verificaciones posteriores.
+| Comprobación | Resultado |
+| --- | --- |
+| `migration list --remote` | **9 de 9** con columna remota, 0 pendientes |
+| `db diff --remote` (`public`, `acta_private`) | **sin diferencias**, sin avisos destructivos |
+| `db lint --remote` | **sin errores de esquema** |
+| Disparadores de protección | **7 de 7** presentes |
+| Funciones de `acta_private` | **10 de 10** presentes |
+| `public.sign_minutes` | presente y publicada en `/rpc/` |
+| Matriz de privilegios | **idéntica** a la local, 27 concesiones a cada lado |
+| `anon` en `public` | **ningún privilegio** |
+| `TRUNCATE` para `anon` y `authenticated` | **ninguna concesión** |
+| Inventario de datos | **sin cambios**, tabla por tabla |
+| Auditoría de solo lectura | **9 comprobaciones sin hallazgos** |
 
-**Camino B — más simple, con una ventana en la que no se puede firmar.**
-
-3. Desplegar primero la aplicación de esta rama. Firmará a través de
-   `sign_minutes`, que todavía no existe en remoto: la ruta de firma devolverá
-   un error controlado durante la ventana, pero **nada se corrompe**. Es
-   preferible a lo contrario, donde la aplicación escribiría por una vía que ya
-   no tiene permiso.
-4. Aplicar las seis migraciones de una vez.
-5. Verificaciones posteriores.
-
-Elija uno de los dos **antes** de empezar. Hacer la mitad de cada uno es la
-única forma de salir mal de aquí.
-
-### Verificaciones posteriores
+Y la verificación de comportamiento, ejecutando los manejadores reales de las
+rutas contra la base de producción
+([`tests/remote/production.test.ts`](../tests/remote/production.test.ts)):
+**16 de 16**, con residuo cero comprobado al terminar.
 
 ```bash
-node node_modules/supabase/dist/supabase.js db diff --remote
+ACTA_VERIFY_REMOTE=<referencia> npx vitest run -c vitest.remote.config.mts
 ```
 
-Debe quedar **vacío**.
+Cubre el inicio de sesión, el aislamiento institucional, la denegación a la
+clave publicable, la revocación de la escritura directa en `signatures`, la
+inalterabilidad de la auditoría, las tres guardas de estado e identidad, la
+generación del PDF, la prevención de duplicados al repetir la solicitud, la
+inmutabilidad de los metadatos del documento, la descarga con cotejo de
+`SHA-256`, la privacidad del bucket, la integridad del documento histórico y la
+revocación de aprobación al reabrir.
 
-```bash
-node node_modules/supabase/dist/supabase.js db lint --remote
-```
+> **Lo que esa prueba no hace, a propósito: firmar un acta.** Desde `signed` la
+> única transición permitida es `sent`, y las guardas de finalización vigilan
+> también el `DELETE`. Una firma de prueba en remoto quedaría para siempre en la
+> base de la institución, con su estudiante y su reunión inventados, y allí no
+> hay forma de desactivar un disparador para retirarla. Por eso se comprueba el
+> **rechazo** —que no deja nada— y la firma correcta se da por demostrada sobre
+> la base local, cuyo esquema y cuyos privilegios son hoy idénticos a los del
+> remoto. La primera firma real será la primera firma de verdad.
 
-Y las comprobaciones que confirman que el endurecimiento está vivo de verdad:
-
-- `supabase migration list --remote`: las nueve con columna remota.
-- `anon` sin ningún privilegio en `public`; `authenticated` sin `TRUNCATE`.
-- Los 7 disparadores de protección presentes.
-- `public.sign_minutes` presente e invocable.
-- Un recorrido completo en la aplicación con datos de prueba: grabar, generar
-  acta, aprobar, firmar las dos partes, generar el PDF, **pulsar dos veces y
-  comprobar que no aparece un segundo documento**, y descargar.
-- Ejecutar los Advisors de seguridad y rendimiento del panel de Supabase y
-  anotar los avisos residuales con su justificación. Los Advisors son una
-  función del panel y no tienen equivalente local: `db lint` cubre el esquema,
-  no la configuración del proyecto.
+Queda pendiente, porque es una función del panel y no tiene equivalente en el
+CLI: ejecutar los **Advisors** de seguridad y rendimiento de Supabase y anotar
+los avisos residuales. `db lint` cubre el esquema, no la configuración del
+proyecto.
 
 ### Recuperación ante fallos
 
@@ -325,16 +372,27 @@ restricciones pendientes, de modo que no hay nada que fuerce a empezar de cero.
 Reconstruir destruiría los datos de demostración, que son precisamente los que
 permiten comprobar que las restricciones nuevas no rompen nada existente.
 
-## 7. Corrección prioritaria de `TRUNCATE`
+## 7. Corrección de `TRUNCATE`: ya no hace falta
 
-Preparada, **aparte de las migraciones** y **pendiente de autorización**:
+La migración `20261126031630` retiró el privilegio al aplicarse, y el volcado
+posterior no encuentra **ninguna** concesión de `TRUNCATE` en el proyecto
+remoto. La corrección independiente **no se ejecutó y no es necesaria**: su
+propio documento lo anticipaba —si las migraciones iban primero, encontraría
+cero concesiones y no haría nada—.
+
+Se conserva por si la condición reapareciera, que es el caso realista: la
+exposición automática de tablas nuevas de Supabase concede privilegios a los
+roles de la Data API sin `GRANT` explícito, de modo que una tabla añadida más
+adelante podría volver a traer `TRUNCATE` consigo.
+
+Los archivos, con su reversión:
 
 - [`supabase/fixes/0001_revoke_truncate.sql`](../supabase/fixes/0001_revoke_truncate.sql)
 - [`supabase/fixes/0001_revoke_truncate_rollback.sql`](../supabase/fixes/0001_revoke_truncate_rollback.sql)
 
-Va aparte porque `migration up --remote` arrastraría también las seis
-migraciones de esquema, y esta solo toca privilegios. Así la decisión sobre el
-resto no la retiene.
+Iba aparte porque `migration up --remote` arrastraría también las seis
+migraciones de esquema, y esta solo toca privilegios: así la decisión sobre el
+resto no la retenía.
 
 Ambos archivos se probaron en la base local **en los dos sentidos**: la
 reversión devolvió el privilegio en 28 concesiones, la suite de seguridad lo
@@ -344,13 +402,34 @@ Detalle completo —SQL, privilegios afectados, verificación previa y posterior
 reversión, impacto e interacción con las migraciones— en el encabezado de los
 propios archivos y en el informe final de la fase.
 
-## 8. Autorizaciones pendientes
+## 8. Lo que queda
 
-1. **Corrección de `TRUNCATE` en remoto** (§7). Independiente, reversible, sin
-   impacto en la aplicación.
-2. **Aplicación de las seis migraciones pendientes** (§6), después del respaldo
-   verificado y de repetir la verificación de compatibilidad.
-3. **Despliegue de la aplicación de esta rama**, coordinado con el punto 2 según
-   uno de los dos órdenes descritos.
-4. **Pull Request de `security/hardening` a `main`.** No se ha creado ni
-   fusionado nada. `main` no se ha tocado.
+### El despliegue está bloqueado, y no por el código
+
+**ACTA PRO no tiene entorno de producción.** Se comprobó de cuatro maneras y las
+cuatro coinciden:
+
+| Señal | Estado |
+| --- | --- |
+| Despliegues registrados en GitHub | **0** |
+| Entornos en GitHub | **0** |
+| Integración con Vercel, directorio `.vercel`, CLI de Vercel | **ninguna** |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |
+
+Crear ese entorno exige dar de alta una cuenta y conectar el repositorio a un
+proveedor, y eso no se hace sin decisión suya: no se ha contratado ni dado de
+alta nada. El procedimiento completo —importar el repositorio y las 15 variables
+de entorno— está en [`DEPLOY.md`](DEPLOY.md) §4, y sigue siendo válido tal cual.
+
+Lo que sí consta: la aplicación de esta rama **funciona contra la base de
+producción ya migrada**. Sus rutas reales de generación, descarga y verificación
+se ejecutaron contra ella con resultado correcto. Lo que falta es el servidor
+que la sirva, no que el código esté listo.
+
+### Autorizaciones pendientes
+
+1. **Crear el entorno de producción** y desplegar esta rama, o indicar en qué
+   proveedor existente hacerlo.
+2. **Ejecutar los Advisors** del panel de Supabase y anotar los residuales.
+3. **Fusionar el Pull Request** cuando lo revise. Está abierto y **no se ha
+   fusionado**; `main` no se ha tocado.

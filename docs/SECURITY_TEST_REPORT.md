@@ -1,8 +1,8 @@
 # Informe de pruebas de seguridad
 
-Ejecutado el 2026-11-26 sobre `security/hardening`, contra Supabase local.
-Todos los números de esta página provienen de comandos ejecutados; nada está
-estimado.
+Ejecutado el 2026-11-26 sobre `security/hardening`, contra Supabase local y
+—las 25 últimas comprobaciones— contra el proyecto remoto ya migrado. Todos los
+números de esta página provienen de comandos ejecutados; nada está estimado.
 
 ---
 
@@ -54,14 +54,19 @@ exactamente el problema que tenían las pruebas smoke antes de esta fase.
 | `npm run test:concurrency` (dos conexiones) | **18 / 18** |
 | `npm run test:integration` (Supabase local real) | **33 / 33** en 3 archivos |
 | `npm run verify:clean-install` (pila desechable) | **16 / 16** |
+| `scripts/verify-restore.mjs` (restauración sobre Supabase nuevo) | **9 / 9** |
+| `vitest -c vitest.remote.config.mts` (proyecto remoto real) | **16 / 16**, residuo cero |
 | `npm run build` | Compilado correctamente |
 | `npx playwright test` (E2E) | **1 / 1** |
 | `npm audit` | **0 vulnerabilidades** |
 | `npm audit --omit=dev` | **0 vulnerabilidades** |
 | `supabase db lint` | Sin errores de esquema |
 | `supabase db diff` | **Sin diferencias** entre las 9 migraciones y la base local |
+| `supabase db lint --remote` | Sin errores de esquema |
+| `supabase db diff --remote` | **Sin diferencias** entre las 9 migraciones y el proyecto remoto |
 
-**Total: 353 comprobaciones automatizadas.**
+**Total: 378 comprobaciones automatizadas**, 25 de ellas sobre el proyecto
+remoto real.
 
 ## 3. Cobertura SQL por archivo
 
@@ -222,6 +227,39 @@ La segunda superficie es más estrecha que la primera. `TRUNCATE` no tiene forma
 de expresarse en PostgREST, y eso **no lo hacía inofensivo**: la primera
 pregunta seguía respondiendo que sí, y `TRUNCATE` no pasa por RLS.
 
+## 6 bis. Verificación contra el proyecto remoto
+
+[`tests/remote/production.test.ts`](../tests/remote/production.test.ts) — 16
+casos, ejecutados contra `lmscltbyehofrwtddbfn` después de aplicar las nueve
+migraciones.
+
+```bash
+ACTA_VERIFY_REMOTE=<referencia> npx vitest run -c vitest.remote.config.mts
+```
+
+Hace falta nombrar el archivo de configuración **y** la referencia del proyecto:
+dos veces hay que decir que se quiere, y `npm test` no puede arrastrarlo por
+descuido. Con `ACTA_VERIFY_REMOTE=local` y las variables `ACTA_TEST_*` se ensaya
+contra la pila local, que es lo que se hizo antes de tocar el remoto.
+
+| Grupo | Qué comprueba |
+| --- | --- |
+| Acceso | El inicio de sesión entrega una sesión utilizable; la clave publicable sin sesión no lee nada |
+| Aislamiento | Una docente solo ve las reuniones de su institución, y ve exactamente una |
+| Permisos | La escritura directa sobre `signatures` está revocada; la auditoría no se puede alterar ni borrar, y la fila sigue ahí después de intentarlo |
+| Guardas | Transición inválida rechazada; identidad de la reunión inmutable; no se alcanza `signed` sin las firmas obligatorias |
+| Firma | `sign_minutes` está publicada y rechaza lo que no corresponde |
+| Documentos | Genera el PDF y su hash cuadra con el archivo; repetir no crea un segundo documento; los metadatos son inmutables; la descarga coteja el `SHA-256` |
+| Almacenamiento | El bucket no es público; el documento histórico de la institución sigue íntegro byte a byte |
+| Reapertura | Reabrir revoca la aprobación y descarta las firmas |
+
+**Residuo cero.** El bloque de limpieza compara el recuento de ocho tablas antes
+y después y **falla si algo no cuadra**. La retirada va por el camino legítimo
+—reabrir primero, que revoca la aprobación y descarta las firmas, y solo entonces
+borrar— porque en el remoto no se puede desactivar un disparador. Se comprobó
+además por separado: el inventario del proyecto quedó igual al de antes, tabla
+por tabla, y con las mismas dos cuentas de acceso.
+
 ## 7. Reproducibilidad de los bytes del PDF
 
 `tests/unit/pdf-idempotency.test.ts` — 17 casos. Trece sobre la huella de
@@ -247,13 +285,20 @@ Se declara explícitamente para no dar una sensación de cobertura que no existe
   propias.
 - **El límite de tasa no está probado bajo carga**, y es por proceso: con varias
   instancias el tope efectivo se multiplica.
-- **No hay pruebas contra el proyecto remoto.** La auditoría remota
-  (`scripts/audit-remote-readonly.mjs`) es una inspección de solo lectura, no
-  una suite: comprueba compatibilidad de datos, no comportamiento.
+- **La firma correcta no se ha ejercitado nunca contra el proyecto remoto.** Las
+  16 comprobaciones de [`tests/remote/production.test.ts`](../tests/remote/production.test.ts)
+  cubren el rechazo de `sign_minutes`, no su éxito, porque desde `signed` la
+  única transición permitida es `sent` y las guardas de finalización vigilan
+  también el `DELETE`: una firma de prueba quedaría para siempre en la base de la
+  institución. Lo que allí no se puede probar sin dejar rastro se da por
+  demostrado sobre la base local, cuyo esquema y cuyos privilegios resultaron
+  idénticos a los del remoto.
 - **La transcripción y la generación del acta se prueban con dobles.** Las
   pruebas smoke contra Deepgram y Anthropic existen (`npm run test:smoke`) pero
   se ejecutan aparte y dependen del saldo de la cuenta.
-- **El procedimiento de restauración del respaldo no se ha ejercitado contra un
-  proyecto destino real.** Está escrito y hay un verificador
-  (`scripts/verify-backup.mjs --contra-destino`), pero no se ha hecho una
-  restauración completa.
+- **La restauración del respaldo se ha ensayado sobre un Supabase local nuevo,
+  no sobre un proyecto alojado nuevo.** El ensayo
+  (`scripts/verify-restore.mjs`, 9 / 9) demuestra que los datos de la institución
+  se restauran y cuadran, pero las tablas internas de `auth` y `storage` no son
+  comparables entre la versión alojada y la local, de modo que esa parte del
+  procedimiento sigue sin ejercitarse de punta a punta.
