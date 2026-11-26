@@ -29,6 +29,8 @@ revocado a `PUBLIC` y a `anon`; solo `authenticated` y `service_role` tienen
 con su esquema, de modo que no pueden ser secuestradas creando objetos
 homónimos en un esquema anterior del `search_path`.
 
+Las 12 funciones del esquema privado, y para qué sirve cada una:
+
 | Función | Para qué |
 | --- | --- |
 | `current_institution_id()` | Institución del perfil autenticado |
@@ -68,7 +70,79 @@ algo que no se registró.
 La escritura directa sobre `signatures` está revocada para `authenticated`, de
 modo que esta vía no se puede eludir desde la Data API.
 
-## 5. Finalización y reapertura
+## 5. Idempotencia de la generación documental
+
+Cada solicitud al generador creaba un registro y un archivo nuevos aunque nada
+hubiera cambiado. La causa estaba en la fecha: el PDF incrustaba el instante del
+reloj, de modo que los bytes —y con ellos el `SHA-256` y la ruta de
+almacenamiento— diferían en cada llamada. Pulsar dos veces dejaba dos
+«documentos» distintos de la misma acta, cada uno con su hash, lo que vacía de
+sentido la verificación de integridad.
+
+### La fecha deja de venir del reloj
+
+`documentTimestamp()` la deriva del propio contenido: el instante más reciente
+entre la generación del acta, su aprobación y sus firmas. Es el momento en que
+el acta quedó como está, y es el mismo cada vez que se pregunta. Los metadatos
+del PDF (`creationDate`, `modificationDate`, `producer`) también se fijan, y sin
+eso los bytes seguirían difiriendo aunque el texto fuera idéntico.
+
+Hay una prueba que lo comprueba **sobre el archivo real**: dos generaciones con
+los mismos datos producen el mismo PDF byte a byte.
+
+### La huella de generación
+
+`generationFingerprint()` resume los datos de entrada en un `SHA-256`: versión
+del generador, acta, versión, código, estado de aprobación, generador y modelo,
+contenido, advertencias aceptadas, institución, reunión, estudiante,
+participantes —con su consentimiento— y firmas. Participantes y firmas se
+ordenan antes, de modo que el orden en que lleguen no cambia la huella.
+
+De la imagen de cada firma se guarda **su hash, no la imagen**: basta para
+detectar un cambio y evita arrastrar datos personales a la huella.
+
+No es el hash del archivo. Responde a otra pregunta: si los datos que producen
+el PDF son los mismos.
+
+### Quién impide el duplicado
+
+Un índice único **parcial** sobre `(minutes_id, generation_fingerprint)`, en la
+base y no en la aplicación. Es parcial a propósito: los documentos anteriores a
+esta regla tienen la huella a `NULL` y siguen siendo válidos. No se reescribe el
+pasado para que encaje con la regla nueva.
+
+Ese índice resuelve también la carrera. El orden de los pasos no es casual:
+
+1. Si ya hay un documento con esa huella, se reutiliza —**pero solo después de
+   comprobar que su archivo sigue en el almacenamiento y que sus bytes son los
+   registrados**. Reutilizar sin esa comprobación sería afirmar una evidencia
+   que quizá ya no está.
+2. Se genera el PDF.
+3. **Se inserta el registro antes de subir el archivo.** Dos solicitudes
+   simultáneas chocan aquí; quien pierde la carrera no sube nada y reutiliza el
+   documento del ganador.
+4. Se guarda el archivo. Si falla, se deshace el registro: una fila sin PDF
+   detrás sería una referencia a una evidencia que no existe.
+
+La compensación del paso 4 usa el rol de servicio y está acotada por huella y
+por «sin enviar». `documents` **no tiene política de `DELETE`** para
+`authenticated`, a propósito: la evidencia no se retira desde la aplicación.
+
+### Vista previa y documento definitivo
+
+La columna `kind` distingue `preview` de `final`. Una vista previa sale de un
+acta sin aprobar, lleva la banda BORRADOR y no es evidencia institucional. Como
+el estado de aprobación entra en la huella, una previa y un definitivo de los
+mismos datos tienen huellas distintas y conviven sin estorbarse.
+
+`kind` y `generation_fingerprint` son inmutables, como el resto de los
+metadatos del documento.
+
+La orquestación vive en `src/lib/documents/generate.ts`, fuera de la ruta HTTP,
+precisamente para poder ejercitarla contra una base de datos real. La ruta se
+queda con la sesión, el límite de tasa y los códigos de respuesta.
+
+## 6. Finalización y reapertura
 
 Una reunión no alcanza `signed` sin versión vigente aprobada y ambas firmas
 obligatorias. La comprobación vive en el trigger de estado, no en la
@@ -79,14 +153,14 @@ Al volver de `approved` a `draft` se revoca la aprobación del acta vigente, se
 descartan sus firmas y queda constancia en auditoría. Conservarlas permitiría
 que una firma recogida para un texto finalizara otro distinto.
 
-## 6. Mínimo privilegio
+## 7. Mínimo privilegio
 
 El hallazgo más grave de esta fase: **todas las tablas concedían `TRUNCATE` a
 `anon` y a `authenticated`**, y `TRUNCATE` no pasa por RLS. Las políticas eran
 correctas y aun así el historial de auditoría era borrable por cualquier
 sesión. Procede de la exposición automática de tablas nuevas de Supabase.
 
-Estado actual:
+Estado actual **en la base local**:
 
 | Rol | Privilegios en `public` |
 | --- | --- |
@@ -94,7 +168,39 @@ Estado actual:
 | `authenticated` | Lectura según RLS; escritura solo en `meetings`, `meeting_participants`, `transcript_segments`, `minutes`, `documents`, `commitment_tracking` y `audit_logs` (solo `INSERT`) |
 | `service_role` | Almacenamiento y `google_credentials` |
 
-## 7. Auditoría
+### En el proyecto remoto esto todavía no es así
+
+El volcado del esquema remoto del 2026-11-26 muestra `GRANT ALL` para `anon` y
+`authenticated` en las 28 tablas de `public` y del esquema archivado. Conviene
+decir con precisión hasta dónde llega el riesgo, sin exagerarlo ni minimizarlo:
+
+- **Concedido en PostgreSQL**: sí, `TRUNCATE` incluido.
+- **Alcanzable con la clave publicable**: no. PostgREST no tiene forma de
+  expresar `TRUNCATE`, y el remoto no expone ninguna función invocable.
+
+No es una puerta abierta: es una puerta sin cerradura. Se vuelve aprovechable en
+cuanto aparezca cualquier vía que ejecute SQL con esos roles —una función con
+SQL dinámico, una función `SECURITY DEFINER` sin `search_path` fijo, acceso
+directo a la base—. La corrección está preparada, aislada del resto y pendiente
+de autorización:
+[`supabase/fixes/0001_revoke_truncate.sql`](../supabase/fixes/0001_revoke_truncate.sql).
+
+Se comprobó que el privilegio no hace falta: la aplicación no emite `TRUNCATE`
+en ningún punto. Las únicas apariciones de esa palabra en el código son clases
+CSS de Tailwind para recortar texto.
+
+### La prueba que se dejó engañar
+
+Probar el par corrección/reversión sobre la base local descubrió un falso
+aprobado en la propia suite: los casos que intentan `TRUNCATE` sobre `meetings`
+y `minutes` **pasaban igual con el privilegio concedido**, porque esas tablas
+están referenciadas por claves foráneas y el `TRUNCATE` falla por eso. Solo el
+de `audit_logs` —tabla sin referencias entrantes— delataba la debilidad.
+
+Ahora hay dos casos que miran el privilegio en sí. Una prueba que pasa por el
+motivo equivocado es peor que no tenerla, porque da tranquilidad sin darla.
+
+## 8. Auditoría
 
 `audit_logs` no admite `UPDATE` ni `DELETE`. Su política de inserción exige que
 el actor sea quien firma la petición, que la institución sea la suya y que la
@@ -105,7 +211,7 @@ cliente.
 Los metadatos guardan recuentos e identificadores, nunca contenido: ni
 transcripciones, ni imágenes de firma, ni cuerpos de correo.
 
-## 8. Límites honestos
+## 9. Límites honestos
 
 - **La firma manuscrita digitalizada no es una firma electrónica
   cualificada ni certificada.** Es un trazo dibujado en pantalla guardado como
@@ -116,8 +222,18 @@ transcripciones, ni imágenes de firma, ni cuerpos de correo.
 - No hay Content Security Policy con nonces.
 - Los textos de consentimiento y aceptación son borradores institucionales
   **pendientes de revisión jurídica**.
+- **Todo lo descrito en esta página está vivo en la base local, no en el
+  proyecto remoto.** Allí faltan seis migraciones. Detalle en
+  [`SUPABASE_MIGRATION_HISTORY.md`](SUPABASE_MIGRATION_HISTORY.md).
+- La reproducibilidad de los bytes del PDF depende de que `@react-pdf/renderer`
+  siga siendo determinista con la fecha fijada. Hay una prueba que lo
+  comprueba sobre el archivo real, de modo que una actualización que lo rompa
+  se vería; pero es una dependencia de terceros y conviene saberlo.
+- El respaldo del proyecto remoto es manual
+  (`scripts/backup-remote.mjs`): el plan gratuito no incluye respaldos
+  automáticos con retención.
 
-## 9. Datos de estudiantes
+## 10. Datos de estudiantes
 
 El audio nunca se persiste en el servidor. La transcripción, el acta y el
 documento se conservan según la política de archivo de la institución, que

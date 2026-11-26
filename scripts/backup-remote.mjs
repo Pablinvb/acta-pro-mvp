@@ -162,19 +162,28 @@ async function main() {
 
   // ------------------------------------------------------- historial migratorio
   const historial = supabase(["migration", "list", "--remote"]);
-  // El CLI imprime un encabezado antes del JSON. Si no viniera en JSON, se
-  // guarda la salida tal cual: perder el historial es peor que guardarlo feo.
-  const inicio = historial.stdout.indexOf("{");
-  const cuerpo = inicio >= 0 ? historial.stdout.slice(inicio) : historial.stdout;
-  const tieneFilas = /d{14}/.test(cuerpo);
-  if (tieneFilas) {
+  // El CLI reparte su salida entre los dos flujos y precede el JSON con un
+  // encabezado, así que se mira el conjunto y se guarda el conjunto: perder el
+  // historial por no acertar con el flujo sería lo peor de los dos mundos.
+  const salidaCompleta = `${historial.stdout}\n${historial.stderr}`.trim();
+  const inicio = salidaCompleta.indexOf('{"migrations"');
+  const cuerpo = inicio >= 0 ? salidaCompleta.slice(inicio) : salidaCompleta;
+
+  // Un historial útil nombra al menos una migración, y los identificadores son
+  // marcas de tiempo de 14 dígitos.
+  const identificadores = cuerpo.match(/\d{14}/g) ?? [];
+  if (identificadores.length > 0) {
     writeFileSync(
       join(salida, inicio >= 0 ? "historial-migraciones.json" : "historial-migraciones.txt"),
       cuerpo,
     );
-    paso("Historial de migraciones", true, inicio >= 0 ? "json" : "texto");
+    paso(
+      "Historial de migraciones",
+      true,
+      `${new Set(identificadores).size} migración(es) listadas`,
+    );
   } else {
-    paso("Historial de migraciones", false, (historial.stderr || historial.stdout).slice(0, 60));
+    paso("Historial de migraciones", false, salidaCompleta.slice(0, 60) || "sin salida");
   }
 
   // ---------------------------------------------- los archivos, que no van en SQL
@@ -233,6 +242,12 @@ async function main() {
     );
   }
 
+  // El procedimiento de restauración se escribe antes del manifiesto, y no
+  // después: también es una pieza del respaldo, y dejarla fuera del manifiesto
+  // la convertiría en un archivo ajeno a ojos del verificador.
+  writeFileSync(join(salida, "RESTAURACION.md"), RESTAURACION(ref));
+  paso("Procedimiento de restauración", true, "RESTAURACION.md");
+
   // -------------------------------------------------------------- manifiesto
   const piezas = [...walk(salida)]
     .filter((p) => !p.endsWith("MANIFIESTO.json"))
@@ -263,9 +278,6 @@ async function main() {
     ),
   );
   paso("Manifiesto con SHA-256", true, `${piezas.length} pieza(s)`);
-
-  writeFileSync(join(salida, "RESTAURACION.md"), RESTAURACION(ref));
-  paso("Procedimiento de restauración", true, "RESTAURACION.md");
 
   const fallos = pasos.filter((p) => !p.ok).length;
   console.log(`\n  ${pasos.length - fallos} / ${pasos.length} pasos completados\n`);

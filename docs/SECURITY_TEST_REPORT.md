@@ -6,46 +6,73 @@ estimado.
 
 ---
 
-## Comando único
+## 1. Comando único
 
 ```bash
 npm run verify:security
 ```
 
-Encadena typecheck, lint, pruebas unitarias y pruebas SQL. Las SQL solas:
+Encadena, en este orden: `typecheck`, `lint`, pruebas unitarias, pruebas SQL,
+pruebas de concurrencia y pruebas de integración. Si cualquiera falla, la
+cadena se detiene.
+
+Cada banco por separado:
 
 ```bash
 npm run test:security
 ```
 
-Cada archivo SQL corre dentro de una transacción que **siempre revierte**, con
-datos ficticios, sin dejar residuos y sin consumir créditos de Anthropic,
-Deepgram ni Resend.
+```bash
+npm run test:concurrency
+```
 
-## Resultados
+```bash
+npm run test:integration
+```
+
+```bash
+npm run verify:clean-install
+```
+
+Los archivos SQL corren dentro de una transacción que **siempre revierte**, con
+datos ficticios, sin dejar residuos y sin consumir créditos de Anthropic,
+Deepgram ni Resend. Las de concurrencia son la excepción y se explica por qué
+en §4.
+
+**Ninguna de estas pruebas se omite sola si falta Docker: falla.** Una prueba
+que se salta en silencio informa de un éxito que nadie comprobó, y eso era
+exactamente el problema que tenían las pruebas smoke antes de esta fase.
+
+## 2. Resultados
 
 | Verificación | Resultado |
 | --- | --- |
 | `npm run typecheck` | Sin errores |
 | `npm run lint` | Sin errores ni advertencias |
-| `npm test` (Vitest) | **137 / 137** en 17 archivos |
-| `npm run test:security` (SQL) | **48 / 48** en 3 archivos |
+| `npm test` (Vitest, unitarias) | **154 / 154** en 18 archivos |
+| `npm run test:security` (SQL) | **132 / 132** en 5 archivos |
+| `npm run test:concurrency` (dos conexiones) | **18 / 18** |
+| `npm run test:integration` (Supabase local real) | **33 / 33** en 3 archivos |
+| `npm run verify:clean-install` (pila desechable) | **16 / 16** |
 | `npm run build` | Compilado correctamente |
 | `npx playwright test` (E2E) | **1 / 1** |
+| `npm audit` | **0 vulnerabilidades** |
 | `npm audit --omit=dev` | **0 vulnerabilidades** |
 | `supabase db lint` | Sin errores de esquema |
-| `supabase db diff` | **Sin diferencias** entre migraciones y base local |
+| `supabase db diff` | **Sin diferencias** entre las 9 migraciones y la base local |
 
-## Cobertura SQL por archivo
+**Total: 353 comprobaciones automatizadas.**
+
+## 3. Cobertura SQL por archivo
 
 ### `0001_signing_and_finalization.sql` — 20 casos
 
-Creación de reuniones en estados avanzados (bloqueada en `signed` y
-`approved`, permitida en `scheduled`); finalización sin firmas, con una sola
-firma y con ambas; firma duplicada por rol; modificación de un acta firmada;
-retroceso desde `signed`; reapertura que elimina firmas, revoca la aprobación
-y deja auditoría; y el contrato de `sign_minutes`, incluido que un rechazo no
-deja firmas parciales ni mueve el estado.
+Creación de reuniones en estados avanzados (bloqueada en `signed` y `approved`,
+permitida en `scheduled`); finalización sin firmas, con una sola firma y con
+ambas; firma duplicada por rol; modificación de un acta firmada; retroceso
+desde `signed`; reapertura que elimina firmas, revoca la aprobación y deja
+auditoría; y el contrato de `sign_minutes`, incluido que un rechazo no deja
+firmas parciales ni mueve el estado.
 
 ### `0002_signature_write_paths.sql` — 10 casos
 
@@ -54,7 +81,7 @@ deja firmas parciales ni mueve el estado.
 idempotencia con contenido idéntico e independiente del orden, y rechazo de la
 repetición con contenido distinto sin alterar lo almacenado.
 
-### `0003_privileges_and_audit.sql` — 18 casos
+### `0003_privileges_and_audit.sql` — 20 casos
 
 `TRUNCATE` sobre `audit_logs`, `meetings` y `minutes`; escritura en `profiles`;
 lectura de `google_credentials`; suplantación de actor; anotación en otra
@@ -62,28 +89,171 @@ institución o sobre una reunión ajena; fabricación de eventos `minutes.signed
 y `minutes.reopened`; anotación legítima; reescritura y borrado de la
 auditoría; aislamiento institucional en lectura; y superficie anónima.
 
-## Reproducibilidad de migraciones
+> **Dos casos nuevos, y la razón concreta por la que se añadieron.** Al probar
+> el par corrección/reversión de `TRUNCATE` sobre la base local se descubrió un
+> falso aprobado: las pruebas que intentan `TRUNCATE` sobre `meetings` y
+> `minutes` **pasaban igual con el privilegio concedido**, porque esas tablas
+> están referenciadas por claves foráneas y el `TRUNCATE` falla por eso. Solo la
+> de `audit_logs` —tabla sin referencias entrantes— delataba la debilidad. Los
+> casos `G6` y `G7` miran el privilegio en sí (`has_table_privilege`,
+> `information_schema.role_table_grants`), que es lo que no admite equívocos.
 
-`supabase db diff` crea una base sombra **vacía**, aplica las 8 migraciones en
-orden y compara con la base local. Resultado: `No schema changes found`. Es
-decir, las migraciones reproducen el esquema desde cero y la base local no
-tiene deriva respecto de ellas.
+### `0004_document_idempotency.sql` — 15 casos
 
-Se verificó además que el bucket `acta-documents` existe y es privado.
+Registro de un documento con huella; rechazo de la misma huella repetida en la
+misma acta; convivencia de huellas distintas (vista previa y definitivo);
+huella con formato inválido; `kind` fuera de sus dos valores; compatibilidad de
+los documentos históricos sin huella, incluidos dos conviviendo bajo el índice
+parcial; inmutabilidad de la huella, de `kind`, del `sha256` y de la ruta;
+actualización del acuse de envío, que sí debe seguir permitida; y que la
+evidencia no se puede retirar desde la aplicación —`documents` no tiene política
+de `DELETE`, a propósito—.
 
-## Lo que estas pruebas todavía no cubren
+### `0005_state_machine.sql` — 67 casos
+
+**Las 64 combinaciones posibles entre los ocho estados, una por una**, más tres
+comprobaciones sobre la propia matriz: que cubre las 64, que solo 19 están
+permitidas (8 identidades y 11 avances legítimos) y que `sent` es terminal.
+
+La matriz esperada se escribe en el archivo de prueba de forma **independiente
+del disparador**, a partir del modelo de `src/lib/meeting-state.ts`. Si alguien
+altera el disparador, estas pruebas lo dicen. Cada escenario lleva una reunión
+propia con un acta aprobada y las dos firmas obligatorias, para que lo único que
+se mida sea la legalidad de la transición; la precondición de finalización se
+prueba aparte, en `0001`.
+
+## 4. Concurrencia real: dos conexiones, no una simulación
+
+`npm run test:concurrency` abre **dos procesos `psql`**, que son dos conexiones
+con sus propias transacciones y sus propios bloqueos. Un bloqueo razonado no es
+un bloqueo medido, y desde una sola sesión no se puede medir.
+
+A diferencia del resto de la suite, estos escenarios **confirman** sus
+transacciones: una carrera no se puede observar dentro de una transacción que
+luego revierte. El guion retira sus propios datos al empezar y al terminar, con
+identificadores fijos y reconocibles, y comprueba el destino local antes de
+tocar nada.
+
+| Escenario | Casos | Qué se observa |
+| --- | --- | --- |
+| Dos sesiones firman la misma acta a la vez | 6 | Una firma, la otra reconoce que ya estaba firmada; exactamente dos firmas; la reunión queda `signed`; **la auditoría anota la firma una sola vez** |
+| Firma contra reapertura | 4 | La firma se completa, la reapertura simultánea se rechaza, la reunión sigue firmada y las dos firmas siguen ahí |
+| Reapertura contra firma tardía | 4 | La reapertura se completa, la firma tardía se rechaza, no queda ninguna firma suelta y la reunión queda en borrador |
+| Dos generaciones de PDF con la misma huella | 4 | Una registra, la otra choca con el índice único por clave duplicada, y solo queda un documento |
+
+El resultado correcto de la primera no es que una falle: es que una firme y la
+otra reconozca lo ya hecho, sin duplicar firmas ni anotaciones.
+
+## 5. Instalación limpia sobre una pila desechable
+
+Que las migraciones funcionen sobre la base de desarrollo no demuestra que
+funcionen sobre una base nueva: la de desarrollo ha ido acumulando el resultado
+de cada intento, incluidos los fallidos.
+
+`npm run verify:clean-install` levanta una pila local **independiente**, con su
+propio `project_id` (`acta-pro-clean`) y sus propios puertos (base en 54422),
+aplica el historial desde cero y la destruye al terminar.
+
+| Grupo | Comprobaciones |
+| --- | --- |
+| Esquema | La pila responde en su propio puerto; las 9 migraciones se aplican sobre base vacía; quedan 9 de 9 registradas; `db diff` sin diferencias; `db lint` sin avisos |
+| Datos semilla | El archivo declara la cuenta docente; se carga sin errores; `institutions` (1), `profiles` (1), `students` (2), `representatives` (2), `student_representatives` (2) y `meetings` (3) quedan con datos; el bucket `acta-documents` existe y es privado |
+| Suite completa | Las **132** pruebas SQL pasan contra la pila limpia |
+| Aplicación real | Las **33** pruebas de integración pasan contra ese PostgreSQL |
+
+Studio, analíticas, realtime y funciones de borde se dejan apagados en la pila
+desechable: no participan en lo que se valida y levantarlos duplicaría el
+consumo de una máquina que ya tiene otra pila en pie. Queda dicho en el propio
+guion.
+
+**Hallazgo de esta fase:** el archivo semilla **no era autosuficiente**. El
+perfil docente apunta a `auth.users`, que se gestiona por la API de
+autenticación y no por SQL de aplicación, de modo que en una instalación limpia
+la primera inserción fallaba por clave foránea. El encabezado de
+`supabase/seed.sql` lo advierte ahora y da la sentencia concreta; el guion hace
+ese paso por su cuenta. No se guarda ninguna contraseña en el repositorio.
+
+## 6. Almacenamiento real y rutas de API
+
+`npm run test:integration` corre contra el stack local de verdad: el bucket
+real y PostgreSQL real, no dobles de prueba. Las claves se leen de
+`supabase status`, nunca de `.env.local`, de modo que no hay manera de que una
+prueba acabe apuntando al proyecto remoto.
+
+### `storage.test.ts` — 8 casos
+
+El bucket existe y no es público; guarda y recupera el archivo con el mismo
+hash; repetir la subida con los mismos bytes no es un error; subir otros bytes
+en la misma ruta se rechaza como conflicto de integridad; una sesión anónima no
+descarga ni sube; **una sesión autenticada tampoco descarga directamente del
+bucket** —el acceso legítimo pasa por la ruta autenticada de la aplicación, que
+comprueba institución y pertenencia—.
+
+### `document-routes.test.ts` — 10 casos
+
+Se invoca el **manejador real** de las rutas. Lo único sustituido es la lectura
+de la cookie, que pertenece al servidor de Next y no a lo que aquí se comprueba.
+
+Generación verificable (fila, archivo y `sha256` que coinciden); repetir la
+solicitud devuelve el mismo documento y **no crea otro**; la reutilización no
+vuelve a anotar la generación en la auditoría; la descarga entrega el PDF con
+`content-type` y `cache-control` correctos y hash verificado; no entrega un acta
+de otra institución; sin sesión no se genera nada; un archivo manipulado da 409
+tanto al descargar como al regenerar; un archivo desaparecido da 409 **y el
+registro sigue intacto**, porque no se borra la evidencia por que falte el
+archivo, se informa; un identificador inexistente da 404.
+
+### `data-api-permissions.test.ts` — 15 casos
+
+Separa dos preguntas que se confunden con facilidad:
+
+- **Concedido en PostgreSQL** (6 casos): `anon` sin ningún privilegio en
+  `public`; `authenticated` sin `TRUNCATE` en ninguna tabla; sin `UPDATE` ni
+  `DELETE` sobre `audit_logs`; `google_credentials` solo para el rol de
+  servicio; RLS activo en todas las tablas; **todas las funciones
+  `SECURITY DEFINER` con `search_path` fijo**.
+- **Alcanzable por la API de datos** (9 casos): `anon` no lee ni escribe
+  ninguna de las 12 tablas ni puede invocar la firma; la docente ve su reunión y
+  no la ajena; no puede escribir firmas por la vía directa; no puede ascenderse
+  a administradora; no puede borrar ni alterar un documento; sí puede firmar por
+  la vía transaccional; no puede firmar el acta de otra institución.
+
+La segunda superficie es más estrecha que la primera. `TRUNCATE` no tiene forma
+de expresarse en PostgREST, y eso **no lo hacía inofensivo**: la primera
+pregunta seguía respondiendo que sí, y `TRUNCATE` no pasa por RLS.
+
+## 7. Reproducibilidad de los bytes del PDF
+
+`tests/unit/pdf-idempotency.test.ts` — 17 casos. Trece sobre la huella de
+generación y la fecha determinista, y **tres sobre el archivo real**: dos
+generaciones con los mismos datos producen el mismo PDF byte a byte, la ruta de
+almacenamiento es por tanto la misma, y cambiar el instante del documento sí
+cambia los bytes.
+
+Esta es la prueba que sostiene toda la idempotencia. Si los bytes no fueran
+reproducibles, el `SHA-256` del archivo y su ruta cambiarían en cada generación
+y no habría forma de reutilizar un documento existente.
+
+## 8. Lo que estas pruebas todavía no cubren
 
 Se declara explícitamente para no dar una sensación de cobertura que no existe:
 
-- Las 64 combinaciones de transición de estado una por una. Se cubren las
-  transiciones legítimas del camino completo y varias inválidas, no la matriz
-  entera.
-- Concurrencia real con dos sesiones simultáneas. El bloqueo `FOR UPDATE` está
-  implementado y razonado, pero no hay una prueba que lance dos conexiones a la
-  vez.
-- Almacenamiento real contra el bucket local: creación, reutilización de
-  archivo idéntico, rechazo de archivo distinto en la misma ruta y descargas
-  con hash incorrecto.
-- Idempotencia de la generación de PDF.
-- Pruebas de integración de las rutas API contra Supabase local; el E2E corre
-  en modo demostración, en memoria.
+- **El E2E sigue corriendo en modo demostración, en memoria.** Hay un solo
+  recorrido Playwright. Las rutas de documentos sí están cubiertas contra
+  Supabase local (§6), pero el recorrido completo de una reunión por la interfaz
+  no lo está.
+- **No hay pruebas de la interfaz de firma manuscrita** más allá del recorrido
+  demostrativo: el lienzo, el trazo y su conversión a PNG no tienen pruebas
+  propias.
+- **El límite de tasa no está probado bajo carga**, y es por proceso: con varias
+  instancias el tope efectivo se multiplica.
+- **No hay pruebas contra el proyecto remoto.** La auditoría remota
+  (`scripts/audit-remote-readonly.mjs`) es una inspección de solo lectura, no
+  una suite: comprueba compatibilidad de datos, no comportamiento.
+- **La transcripción y la generación del acta se prueban con dobles.** Las
+  pruebas smoke contra Deepgram y Anthropic existen (`npm run test:smoke`) pero
+  se ejecutan aparte y dependen del saldo de la cuenta.
+- **El procedimiento de restauración del respaldo no se ha ejercitado contra un
+  proyecto destino real.** Está escrito y hay un verificador
+  (`scripts/verify-backup.mjs --contra-destino`), pero no se ha hecho una
+  restauración completa.
