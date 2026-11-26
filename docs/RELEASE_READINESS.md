@@ -251,24 +251,37 @@ sobre `signatures`, que es la vía que usa el código anterior al commit
 rama, **la firma deja de funcionar**: la versión desplegada intentará escribir
 directamente y recibirá `permission denied`.
 
-El orden seguro es:
+Hay dos órdenes seguros. Los dos empiezan igual:
 
 1. Respaldo verificado.
 2. Verificación de compatibilidad de datos.
-3. **Desplegar primero la aplicación de esta rama.** Firma a través de
-   `sign_minutes`, que todavía no existe en remoto: la ruta de firma devolverá
-   un error controlado durante la ventana, pero nada se corrompe. Es preferible
-   a lo contrario, donde la aplicación escribiría por una vía que ya no tiene
-   permiso.
-3. *(Alternativa, si la ventana sin firma no es aceptable)* Aplicar las
-   migraciones 1 a 3 —que solo añaden objetos y no retiran permisos—, desplegar
-   la aplicación, y aplicar después 4, 5 y 6. Con `sign_minutes` ya creada, la
-   aplicación nueva funciona desde el primer momento y la retirada de permisos
-   llega cuando ya nadie usa la vía antigua. **Es el camino recomendado.**
-4. Verificaciones posteriores.
 
-Elija uno de los dos antes de empezar. Hacer la mitad de cada uno es la única
-forma de salir mal de aquí.
+Y a partir de ahí:
+
+**Camino A — recomendado, sin ventana sin firma.**
+
+3. Aplicar las migraciones **1 a 3**. Solo añaden objetos: esquema privado,
+   funciones, políticas, restricciones, disparadores y `sign_minutes`. No
+   retiran ningún permiso, de modo que la aplicación desplegada sigue
+   funcionando exactamente igual.
+4. Desplegar la aplicación de esta rama. Con `sign_minutes` ya creada, firma
+   por la vía nueva desde el primer momento.
+5. Aplicar las migraciones **4, 5 y 6**. La retirada de permisos llega cuando
+   ya nadie usa la vía antigua.
+6. Verificaciones posteriores.
+
+**Camino B — más simple, con una ventana en la que no se puede firmar.**
+
+3. Desplegar primero la aplicación de esta rama. Firmará a través de
+   `sign_minutes`, que todavía no existe en remoto: la ruta de firma devolverá
+   un error controlado durante la ventana, pero **nada se corrompe**. Es
+   preferible a lo contrario, donde la aplicación escribiría por una vía que ya
+   no tiene permiso.
+4. Aplicar las seis migraciones de una vez.
+5. Verificaciones posteriores.
+
+Elija uno de los dos **antes** de empezar. Hacer la mitad de cada uno es la
+única forma de salir mal de aquí.
 
 ### Verificaciones posteriores
 
