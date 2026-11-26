@@ -20,7 +20,8 @@
     "test:integration": "vitest run --config vitest.integration.config.mts",
     "verify:clean-install": "node scripts/verify-clean-install.mjs",
     "verify:restore": "node scripts/verify-restore.mjs",
-    "verify:remote": "vitest run --config vitest.remote.config.mts"
+    "verify:remote": "vitest run --config vitest.remote.config.mts",
+    "verify:deployment": "node scripts/verify-deployment.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

@@ -8,7 +8,13 @@ import {
   resetEnvCache,
 } from "@/lib/env";
 
-const TOUCHED = [...REQUIRED_IN_PRODUCTION, "DEMO_MODE", "DEEPGRAM_DIARIZE_MODEL", "ANTHROPIC_MODEL"];
+const TOUCHED = [
+  ...REQUIRED_IN_PRODUCTION,
+  "DEMO_MODE",
+  "DEEPGRAM_DIARIZE_MODEL",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_TIMEOUT_MS",
+];
 
 function clear() {
   for (const name of TOUCHED) delete process.env[name];
@@ -82,5 +88,22 @@ describe("valores por defecto", () => {
     expect(env.NEXT_PUBLIC_DEEPGRAM_LANGUAGE).toBe("es-419");
     expect(env.DEEPGRAM_DIARIZE_MODEL).toBe("latest");
     expect(env.ANTHROPIC_MODEL).toBe("claude-sonnet-5");
+  });
+
+  it("el plazo de Anthropic cabe dentro del límite de 60 s de una función", () => {
+    const env = getEnv();
+
+    // No es una preferencia estética: si el plazo del SDK excede el de la
+    // plataforma, la función muere antes de que el SDK se rinda y quien usa la
+    // aplicación recibe un error de pasarela en vez de un mensaje legible.
+    expect(env.ANTHROPIC_TIMEOUT_MS).toBe(45_000);
+    expect(env.ANTHROPIC_TIMEOUT_MS).toBeLessThan(60_000);
+  });
+
+  it("se puede ampliar el plazo donde la plataforma lo permita", () => {
+    process.env.ANTHROPIC_TIMEOUT_MS = "120000";
+    resetEnvCache();
+
+    expect(getEnv().ANTHROPIC_TIMEOUT_MS).toBe(120_000);
   });
 });

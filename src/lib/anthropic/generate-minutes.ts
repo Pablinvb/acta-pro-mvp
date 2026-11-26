@@ -8,7 +8,6 @@ import { MinutesSchema, findOrphanSourceIds, normalizeMinutes, type Minutes } fr
 import type { MeetingDetail, TranscriptSegment } from "@/lib/types";
 
 const MAX_TOKENS = 6000;
-const TIMEOUT_MS = 90_000;
 
 export interface GeneratedMinutes {
   minutes: Minutes;
@@ -63,7 +62,15 @@ export async function generateMinutesWithAnthropic(
     throw new ApiError(409, "No hay transcripción para generar el acta.");
   }
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: TIMEOUT_MS, maxRetries: 1 });
+  // Un reintento dentro de un plazo que la plataforma no va a conceder no es
+  // resiliencia: es garantizar que la función muera sin decir por qué. Se hace
+  // un intento, acotado por `ANTHROPIC_TIMEOUT_MS`, y quien use la aplicación
+  // decide si vuelve a pedirlo.
+  const client = new Anthropic({
+    apiKey: env.ANTHROPIC_API_KEY,
+    timeout: env.ANTHROPIC_TIMEOUT_MS,
+    maxRetries: 0,
+  });
   const model = env.ANTHROPIC_MODEL;
 
   let parsed: unknown;

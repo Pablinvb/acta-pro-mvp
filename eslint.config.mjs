@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
     "coverage/**",
     "test-results/**",
     "playwright-report/**",
+    // Salida y cache del adaptador de Netlify: copia el servidor de Next y sus
+    // dependencias aqui, de modo que sin esta linea se analizan miles de
+    // archivos de terceros.
+    ".netlify/**",
   ]),
 ]);
 

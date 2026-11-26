@@ -41,6 +41,17 @@ const envSchema = z.object({
 
   ANTHROPIC_API_KEY: nonEmpty,
   ANTHROPIC_MODEL: z.string().optional().default("claude-sonnet-5"),
+  /**
+   * Cuánto se le concede a Anthropic antes de rendirse, en milisegundos.
+   *
+   * Existe por una razón concreta: el servidor donde se despliega mata la
+   * función antes de que el SDK se rinda si su plazo es más largo que el de la
+   * plataforma, y entonces quien usa la aplicación recibe un error de pasarela
+   * en lugar del mensaje que la aplicación sí sabe dar. En Netlify el límite de
+   * una función sincrónica es de 60 segundos y **no es configurable**, así que
+   * el valor por defecto deja margen dentro de esa ventana.
+   */
+  ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().positive().max(600_000).optional().default(45_000),
 
   RESEND_API_KEY: nonEmpty,
   EMAIL_FROM: nonEmpty,

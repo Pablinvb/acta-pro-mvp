@@ -65,3 +65,6 @@ supabase/snippets/
 # Los respaldos contienen datos personales: nunca bajo control de versiones.
 acta-pro-respaldos/
 respaldos/
+
+# Netlify: estado local del enlace con el sitio, no es del repositorio
+.netlify/

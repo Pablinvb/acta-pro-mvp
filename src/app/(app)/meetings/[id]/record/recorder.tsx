@@ -28,6 +28,22 @@ const STATE_LABEL: Record<LiveState, string> = {
 
 const TIMESLICE_MS = 250;
 
+/**
+ * Tope del audio que se puede enviar al servidor en la recuperación.
+ *
+ * El camino normal no manda audio a ningún servidor propio: el navegador habla
+ * con Deepgram directamente. Esta vía es el plan B de cuando la transcripción en
+ * vivo no deja ni una intervención, y ahí sí viaja la grabación completa.
+ *
+ * El límite no es nuestro: las funciones de Netlify aceptan 6 MB de cuerpo y
+ * codifican el binario en base64, lo que añade cerca de un 30 % y deja el tope
+ * real en unos 4,5 MB. Pasado eso la plataforma rechaza la petición **antes** de
+ * que llegue al código, de modo que sin esta comprobación el mensaje sería un
+ * error de red sin explicación. A ~1 MB por minuto de audio en webm, son unos
+ * cuatro minutos de grabación.
+ */
+const MAX_AUDIO_UPLOAD_BYTES = 4_000_000;
+
 function pickMimeType() {
   const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
   if (typeof MediaRecorder === "undefined") return "";
@@ -228,7 +244,16 @@ export function Recorder({
     // configurado: es el plan B que la interfaz ofrece de forma explícita.
     if (options.demo) form.append("source", "demo");
     if (!options.demo && chunksRef.current.length > 0) {
-      form.append("audio", new Blob(chunksRef.current, { type: "audio/webm" }), "grabacion.webm");
+      const audio = new Blob(chunksRef.current, { type: "audio/webm" });
+      if (audio.size > MAX_AUDIO_UPLOAD_BYTES) {
+        throw new Error(
+          `El audio grabado ocupa ${Math.round(audio.size / 1_000_000)} MB y el servidor no acepta ` +
+            `envíos de más de ${Math.round(MAX_AUDIO_UPLOAD_BYTES / 1_000_000)} MB. ` +
+            "La transcripción en vivo no dejó texto, así que no hay nada que recuperar por esta vía. " +
+            "Puede cargar la transcripción de demostración y escribir el acta a mano.",
+        );
+      }
+      form.append("audio", audio, "grabacion.webm");
     }
 
     const response = await fetch("/api/transcriptions/recover", { method: "POST", body: form });

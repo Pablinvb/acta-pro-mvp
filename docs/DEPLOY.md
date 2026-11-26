@@ -6,7 +6,9 @@
 > llamadas al navegador obligaría a publicar las claves dentro del JavaScript
 > del sitio, en un repositorio público. No se hace.
 
-Destino: **Vercel** para la aplicación y **Supabase** para datos y archivos.
+Destino: **Netlify** (plan gratuito) para la aplicación y **Supabase** para datos
+y archivos. La ruta de Vercel se conserva al final como alternativa, porque
+sigue siendo válida.
 
 ---
 
@@ -111,7 +113,169 @@ un acta real es obligatoria.
 
 ---
 
-## 4. Vercel
+## 4. Netlify
+
+Proyecto: **`acta-pro`** · <https://acta-pro.netlify.app> · equipo `ED Pulse 360`
+(plan **Free**).
+
+### 4.1 Lo que Next.js 16 necesita de Netlify: nada
+
+Netlify detecta Next.js y aplica su adaptador OpenNext sin configuración. Next 16
+está soportado y no exige nada distinto de la 15. **No se instala
+`@netlify/plugin-nextjs` ni se fija su versión**: la propia documentación de
+Netlify recomienda no fijarla, porque el adaptador se prueba con cada versión de
+Next y fijarlo deja el sitio atrás. El `proxy.ts` de este proyecto —el
+`middleware.ts` de antes, renombrado en Next 16— se publica como Edge Function.
+
+`netlify.toml` existe solo para fijar la versión de Node, declarar el comando de
+construcción, añadir cuatro cabeceras de seguridad y eximir del rastreo de
+secretos las variables que son públicas por definición. Cada línea lleva su
+motivo escrito al lado.
+
+### 4.2 Los límites del plan gratuito, y dónde aprietan
+
+Cifras de la documentación de Netlify, no estimadas:
+
+| Límite | Valor | Configurable |
+| --- | --- | --- |
+| Función sincrónica | **60 s** | **No** |
+| Función programada | 30 s | No |
+| Función en segundo plano | 15 min | No |
+| Cuerpo de petición y respuesta | **6 MB** | No |
+| Respuesta en flujo | 20 MB | No |
+| Memoria | 1024 MB | Solo en Pro |
+
+Un cuerpo binario va en base64, lo que añade cerca de un 30 %: el tope real para
+subir un archivo es de unos **4,5 MB**.
+
+Dos sitios de esta aplicación tocan esos límites, y los dos están resueltos:
+
+**Generación del acta con Anthropic.** La ruta declara `maxDuration = 120`, que
+en Netlify **no se concede**: la función muere a los 60 s. Peor aún, el SDK tenía
+un plazo propio de 90 s y un reintento, de modo que la plataforma siempre ganaba
+la carrera y quien usara la aplicación recibía un error de pasarela sin
+explicación. Ahora el plazo se fija con `ANTHROPIC_TIMEOUT_MS` —45 s por
+defecto, un único intento—, de manera que el que se rinde primero es el SDK y la
+aplicación puede dar un mensaje legible. Si una transcripción muy larga no cabe
+en ese plazo, la salida compatible con el plan gratuito es mover la generación a
+una **función en segundo plano** (15 min) y que la interfaz consulte el
+resultado; es un cambio de arquitectura y no se ha hecho.
+
+**Recuperación de la transcripción desde el audio.** El camino normal no manda
+audio a ningún servidor propio: el navegador habla con Deepgram directamente con
+un token temporal. Pero el plan B, cuando la transcripción en vivo no deja ni una
+intervención, sube la grabación completa a `/api/transcriptions/recover`. A unos
+**1 MB por minuto** de webm, el tope de 4,5 MB son unos **cuatro minutos**: para
+una reunión de media hora, esa vía no sirve en este plan. El navegador ahora lo
+comprueba antes de enviar y lo dice con claridad, en lugar de provocar un error
+de red sin causa aparente. La salida compatible, para cuando haga falta: que el
+navegador suba el audio **a Supabase Storage** y la función pase a Deepgram una
+URL firmada, de modo que el archivo no atraviese la función. Necesita una
+política de almacenamiento nueva y tampoco se ha hecho.
+
+Lo que **no** es problema: el PDF. Pesa unos 29 KB, se genera en bastante menos
+de 60 s y la descarga va muy por debajo del tope de respuesta.
+
+### 4.3 Enlazar el proyecto y configurar el entorno
+
+```powershell
+netlify login
+```
+
+```powershell
+netlify link
+```
+
+Las variables se cargan del archivo local, sin pasar por el portapapeles ni por
+la pantalla:
+
+```powershell
+netlify env:import .env.local
+```
+
+Después hay que corregir las dos que apuntaban a la máquina de desarrollo:
+
+```powershell
+netlify env:set NEXT_PUBLIC_APP_URL https://acta-pro.netlify.app
+```
+
+```powershell
+netlify env:set GOOGLE_REDIRECT_URI https://acta-pro.netlify.app/api/integrations/google/callback
+```
+
+> `NEXT_PUBLIC_APP_URL` se incrusta en el código **durante la construcción**, de
+> modo que cambiarla exige volver a desplegar, no solo guardarla.
+
+> Si va a usar Google Calendar, registre esa misma URI de retorno en Google
+> Cloud. Sin ese registro el enlace con el calendario falla, pero el resto de la
+> aplicación no se entera.
+
+`DEMO_MODE` se queda en **`false`**. Es deliberado: sin eso, un fallo de Supabase
+haría que la aplicación continuara con datos ficticios, y un acta de
+demostración no debe parecerse nunca al expediente de un estudiante real.
+
+### 4.4 Construir en Linux, no en Windows
+
+```powershell
+netlify deploy --build
+```
+
+En Windows ese comando **falla** si la cuenta no tiene privilegio para crear
+enlaces simbólicos:
+
+```
+EPERM: symlink ... .next\standalone\node_modules\@react-pdf\renderer
+```
+
+No es un problema de la aplicación ni de Netlify: el adaptador de Next enlaza el
+código del servidor y Windows lo prohíbe salvo con modo de desarrollador o con
+permisos de administrador. Hay dos salidas:
+
+1. **Que construya Netlify.** Conecte el repositorio en el panel del proyecto;
+   sus servidores son Linux. Es la opción duradera y además da despliegue
+   continuo. Requiere autorizar la aplicación de GitHub de Netlify una vez.
+2. **Construir en un contenedor Linux**, que es lo que se hizo aquí:
+
+```powershell
+docker run -d --name acta-build -e NETLIFY_AUTH_TOKEN -e NETLIFY_SITE_ID node:22 sleep infinity
+```
+
+Se copia el código dentro del contenedor —no como volumen montado, porque la
+escritura seguiría cayendo en el sistema de archivos de Windows—, y allí se
+ejecuta `npm ci` y `netlify deploy --build`.
+
+### 4.5 Acceso restringido en el plan gratuito
+
+**La protección por contraseña no está en el plan gratuito**; es de Pro. Lo que
+sí está es hacer el proyecto **privado**: en Free, un proyecto privado es visible
+**solo para la persona propietaria del equipo**, con el inicio de sesión de
+Netlify por delante.
+
+Eso es lo que se usa para la validación inicial. Conviene saber qué cubre y qué
+no: la aplicación ya exige sesión de Supabase para cualquier dato, de modo que
+sin credenciales no se lee nada aunque la URL se conozca. El proyecto privado
+añade una puerta antes incluso de llegar a la aplicación.
+
+### 4.6 Comprobación tras desplegar
+
+```powershell
+node scripts/verify-deployment.mjs https://acta-pro.netlify.app
+```
+
+Comprueba que la aplicación responde, que las funciones se ejecutan, que las
+integraciones están configuradas, que las rutas privadas rechazan a quien no ha
+entrado, que las cabeceras de seguridad llegan, y descarga el paquete de
+JavaScript del navegador para buscar dentro **cada clave privada**. Esa última es
+la que importa: si alguna apareciera, el guion lo dice por su nombre y falla.
+
+Netlify, además, rastrea por su cuenta el resultado de la construcción buscando
+los valores de las variables de entorno y **falla el despliegue** si encuentra
+alguno. Esa red se conserva a propósito: en `netlify.toml` solo se eximen las
+variables `NEXT_PUBLIC_*`, que Next incrusta por diseño. Ninguna clave privada
+está eximida, y si el rastreo señalara una, es un fallo real y no algo que
+silenciar añadiéndola a la lista.
+
+## 4 bis. Vercel (alternativa)
 
 1. Entre en <https://vercel.com/new> con su cuenta de GitHub.
 2. Importe el repositorio **`Pablinvb/acta-pro-mvp`**.
@@ -155,8 +319,8 @@ Opcionales, solo si va a usar correo o calendario:
 
 ## 5. Comprobación tras desplegar
 
-```bash
-curl -s https://SU-DOMINIO.vercel.app/api/health/integrations
+```powershell
+curl.exe -s https://acta-pro.netlify.app/api/health/integrations
 ```
 
 Debe responder:
@@ -171,7 +335,7 @@ Debe responder:
 
 Después, en el navegador: entre con la cuenta creada en el paso 1.3, abra la
 reunión semilla, confirme participantes, registre el consentimiento y grabe.
-**El micrófono exige HTTPS**, que Vercel ya proporciona.
+**El micrófono exige HTTPS**, que Netlify ya proporciona.
 
 ---
 
@@ -179,6 +343,8 @@ reunión semilla, confirme participantes, registre el consentimiento y grabe.
 
 | Límite | Efecto | Cuándo importa |
 | --- | --- | --- |
+| Función de 60 s en Netlify, no ampliable | Una transcripción muy larga puede no dar tiempo a generar el acta. El plazo del SDK se bajó a 45 s para que el mensaje de error sea legible | Reuniones largas; detalle y salida en §4.2 |
+| Cuerpo de 6 MB, unos 4,5 MB en binario | La recuperación del acta desde el audio solo sirve para grabaciones de unos cuatro minutos | Solo en el plan B, cuando la transcripción en vivo no deja texto |
 | Límite de tasa en memoria, por instancia | Con varias instancias el tope efectivo se multiplica | Antes de abrir la herramienta a toda una institución |
 | Sin Content Security Policy con nonces | Menos defensa en profundidad ante XSS | Endurecimiento previo a uso institucional |
 | Repositorio en memoria si Supabase cae | Con `DEMO_MODE=false` no se activa: la aplicación falla a la vista en lugar de inventar datos | Es el comportamiento buscado |
