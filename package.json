@@ -15,7 +15,9 @@
     "test:smoke": "vitest run --config vitest.smoke.config.mts",
     "check:env": "tsx scripts/check-env.ts",
     "test:security": "node scripts/verify-security.mjs",
-    "verify:security": "npm run typecheck && npm run lint && npm run test && npm run test:security"
+    "verify:security": "npm run typecheck && npm run lint && npm run test && npm run test:security && npm run test:concurrency && npm run test:integration",
+    "test:concurrency": "node scripts/verify-concurrency.mjs",
+    "test:integration": "vitest run --config vitest.integration.config.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
