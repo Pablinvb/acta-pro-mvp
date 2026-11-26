@@ -55,6 +55,38 @@ export interface NewSignatureInput {
   acceptance_text_version: string;
 }
 
+/**
+ * Firma completa de un acta. El registro de las firmas y la finalización de
+ * la reunión forman una sola operación: o se aplican ambas, o ninguna.
+ */
+export interface SignMinutesInput {
+  minutes_id: string;
+  acceptance_text_version: string;
+  signatures: {
+    signer_name: string;
+    signer_role: ParticipantType;
+    signature_path: string;
+  }[];
+}
+
+export interface SignMinutesResult {
+  /** La reunión ya estaba firmada con exactamente este contenido. */
+  already_signed: boolean;
+  meeting_id: string;
+  signatures: number;
+}
+
+/**
+ * Rechazo controlado de una firma: el estado no permite firmar, falta una
+ * firma obligatoria, o se repite la operación con contenido distinto.
+ */
+export class SigningError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SigningError";
+  }
+}
+
 export interface NewDocumentInput {
   minutes_id: string;
   meeting_id: string;
@@ -125,6 +157,13 @@ export interface Repository {
 
   listSignatures(minutesId: string): Promise<Signature[]>;
   addSignature(input: NewSignatureInput): Promise<Signature>;
+
+  /**
+   * Firma el acta y finaliza la reunión en una sola transacción. Es la única
+   * vía admitida: la escritura directa sobre `signatures` está revocada en
+   * Postgres para que no se pueda eludir.
+   */
+  signMinutes(input: SignMinutesInput): Promise<SignMinutesResult>;
 
   createDocument(input: NewDocumentInput): Promise<DocumentRecord>;
   getDocument(id: string): Promise<DocumentRecord | null>;

@@ -22,12 +22,15 @@ import type {
 import type {
   AuditInput,
   NewDocumentInput,
+  SignMinutesInput,
+  SignMinutesResult,
   NewMeetingInput,
   NewSegmentInput,
   NewSignatureInput,
   ParticipantInput,
   Repository,
 } from "@/lib/data/repository";
+import { SigningError } from "@/lib/data/repository";
 import { deriveCommitments } from "@/lib/data/commitments";
 import { DOCUMENTS_BUCKET } from "@/lib/supabase/server";
 
@@ -395,6 +398,28 @@ export class SupabaseRepository implements Repository {
       .eq("signer_role", input.signer_role);
     const result = await this.db.from("signatures").insert(input).select("*").single();
     return unwrap(result, "No se pudo registrar la firma") as Signature;
+  }
+
+  async signMinutes(input: SignMinutesInput): Promise<SignMinutesResult> {
+    // Toda la validación vive en la función de Postgres, que además bloquea la
+    // reunión. Replicarla aquí abriría la puerta a que ambas se desincronicen.
+    const { data, error } = await this.db.rpc("sign_minutes", {
+      p_minutes_id: input.minutes_id,
+      p_signatures: input.signatures,
+      p_acceptance_text_version: input.acceptance_text_version,
+    });
+
+    if (error) {
+      // 23514 es la violación de regla de negocio que levanta la función,
+      // 42501 la falta de autorización y 22023 una entrada inválida: las tres
+      // son del usuario, no del sistema.
+      if (["23514", "42501", "22023"].includes(error.code ?? "")) {
+        throw new SigningError(error.message);
+      }
+      throw new Error(`No se pudo firmar el acta: ${error.message}`);
+    }
+
+    return data as SignMinutesResult;
   }
 
   async createDocument(input: NewDocumentInput) {

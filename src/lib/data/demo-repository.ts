@@ -37,8 +37,10 @@ import type {
   NewSignatureInput,
   ParticipantInput,
   Repository,
+  SignMinutesInput,
+  SignMinutesResult,
 } from "@/lib/data/repository";
-import { NotFoundError } from "@/lib/data/repository";
+import { NotFoundError, SigningError } from "@/lib/data/repository";
 import { deriveCommitments } from "@/lib/data/commitments";
 
 /**
@@ -346,6 +348,92 @@ export class DemoRepository implements Repository {
     };
     store.signatures.push(signature);
     return signature;
+  }
+
+  async signMinutes(input: SignMinutesInput): Promise<SignMinutesResult> {
+    // Espejo en memoria de public.sign_minutes: mismas reglas y mismo orden,
+    // para que el modo demostración no sea más permisivo que Postgres.
+    const store = state();
+    const record = store.minutes.find((m) => m.id === input.minutes_id);
+    if (!record) throw new NotFoundError("el acta", input.minutes_id);
+    const meeting = store.meetings.find((m) => m.id === record.meeting_id);
+    if (!meeting) throw new NotFoundError("la reunión", record.meeting_id);
+
+    const fingerprint = (
+      list: { signer_role: string; signer_name: string; signature_path: string }[],
+    ) =>
+      JSON.stringify(
+        list
+          .map((s) => [s.signer_role, s.signer_name, s.signature_path])
+          .sort((a, b) => a[0].localeCompare(b[0])),
+      );
+
+    if (meeting.status === "signed" || meeting.status === "sent") {
+      const stored = store.signatures.filter((s) => s.minutes_id === input.minutes_id);
+      // Repetir con otro contenido no puede devolver éxito en silencio.
+      if (fingerprint(stored) !== fingerprint(input.signatures)) {
+        throw new SigningError("Esta acta ya fue firmada con un contenido distinto.");
+      }
+      return { already_signed: true, meeting_id: meeting.id, signatures: stored.length };
+    }
+
+    const latest = await this.getLatestMinutes(record.meeting_id);
+    if (latest && latest.id !== record.id) {
+      throw new SigningError(
+        "Existe una versión más reciente del acta. Actualice antes de firmar.",
+      );
+    }
+    if (record.status !== "approved") {
+      throw new SigningError("El acta debe aprobarse antes de firmarse.");
+    }
+    if (meeting.status !== "approved") {
+      throw new SigningError(
+        `La reunión está en estado "${meeting.status}" y no puede firmarse.`,
+      );
+    }
+
+    const roles = new Set(input.signatures.map((s) => s.signer_role));
+    if (!roles.has("teacher") || !roles.has("representative")) {
+      throw new SigningError(
+        "Se requiere la firma de la persona docente y la del representante.",
+      );
+    }
+
+    for (const signature of input.signatures) {
+      store.signatures = store.signatures.filter(
+        (s) => !(s.minutes_id === input.minutes_id && s.signer_role === signature.signer_role),
+      );
+      store.signatures.push({
+        id: randomUUID(),
+        minutes_id: input.minutes_id,
+        signer_name: signature.signer_name,
+        signer_role: signature.signer_role,
+        signature_path: signature.signature_path,
+        signed_at: now(),
+        acceptance_text_version: input.acceptance_text_version,
+      });
+    }
+
+    meeting.status = "signed";
+
+    await this.appendAudit({
+      institution_id: meeting.institution_id,
+      actor_id: meeting.teacher_id,
+      meeting_id: meeting.id,
+      action: "minutes.signed",
+      metadata_json: {
+        minutes_id: input.minutes_id,
+        version: record.version,
+        roles: [...roles],
+        acceptance_text_version: input.acceptance_text_version,
+      },
+    });
+
+    return {
+      already_signed: false,
+      meeting_id: meeting.id,
+      signatures: input.signatures.length,
+    };
   }
 
   async createDocument(input: NewDocumentInput) {

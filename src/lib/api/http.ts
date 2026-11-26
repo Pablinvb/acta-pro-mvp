@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 
 import { UnauthorizedError } from "@/lib/session";
 import { InvalidTransitionError } from "@/lib/meeting-state";
-import { NotFoundError } from "@/lib/data/repository";
+import { NotFoundError, SigningError } from "@/lib/data/repository";
 
 export class ApiError extends Error {
   constructor(
@@ -27,6 +27,7 @@ export function toErrorResponse(error: unknown) {
   if (error instanceof UnauthorizedError) return jsonError(401, error.message);
   if (error instanceof NotFoundError) return jsonError(404, "El recurso solicitado no existe.");
   if (error instanceof InvalidTransitionError) return jsonError(409, error.message);
+  if (error instanceof SigningError) return jsonError(409, error.message);
   if (error instanceof ApiError) return jsonError(error.status, error.message);
   if (error instanceof ZodError) {
     return jsonError(400, "Los datos enviados no son válidos.", {
