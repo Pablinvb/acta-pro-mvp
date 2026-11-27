@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sha256Hex } from "@/lib/crypto/hash";
 
 import type { Minutes } from "@/lib/schemas/minutes";
 import type {
@@ -21,14 +24,39 @@ import type {
 import type {
   AuditInput,
   NewDocumentInput,
+  SignMinutesInput,
+  SignMinutesResult,
   NewMeetingInput,
   NewSegmentInput,
   NewSignatureInput,
   ParticipantInput,
   Repository,
 } from "@/lib/data/repository";
+import { SigningError } from "@/lib/data/repository";
 import { deriveCommitments } from "@/lib/data/commitments";
-import { DOCUMENTS_BUCKET } from "@/lib/supabase/server";
+import { DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+
+/**
+ * Nombre de la clave foránea por la que se incrusta el estudiante de una
+ * reunión.
+ *
+ * Hay que nombrarla, y conviene saber por qué. Desde la migración
+ * `20261125212938` existen **dos** claves foráneas de `meetings` a `students`:
+ * la de siempre, `meetings_student_id_fkey` sobre `student_id`, y la compuesta
+ * `meetings_student_institution_fk` sobre `(student_id, institution_id)`, que es
+ * la que impide que una reunión apunte a un estudiante de otra institución.
+ *
+ * PostgREST no elige entre dos caminos: responde `300 Multiple Choices` con
+ * «Could not embed because more than one relationship was found», y la página
+ * que hiciera esa consulta se cae con un error de servidor. Nombrar la clave
+ * resuelve la ambigüedad sin renunciar a la restricción.
+ *
+ * Se usa la simple y no la compuesta porque es la relación que la consulta
+ * quiere decir -«el estudiante de esta reunión»- y porque no depende de una
+ * restricción añadida para otro propósito. El resultado es el mismo: la clave
+ * compuesta garantiza que ambas coincidan en institución para toda fila.
+ */
+const MEETING_STUDENT_FK = "meetings_student_id_fkey";
 
 /** Fila de `minutes` tal como está en Postgres. */
 interface MinutesRow {
@@ -118,6 +146,14 @@ export class SupabaseRepository implements Repository {
     private readonly admin: SupabaseClient,
   ) {}
 
+  async consumeRequest(actor: string, operation: string, limit: number) {
+    const { data, error } = await this.admin.rpc("consume_request", {
+      p_actor: actor, p_operation: operation, p_limit: limit,
+    });
+    if (error) throw new Error("No se pudo comprobar el límite de solicitudes.");
+    return data === true;
+  }
+
   async getInstitution(id: string) {
     const { data } = await this.db.from("institutions").select("*").eq("id", id).maybeSingle();
     return (data as Institution) ?? null;
@@ -192,13 +228,33 @@ export class SupabaseRepository implements Repository {
     return { meeting, student, teacher, institution, representatives, participants };
   }
 
+  /**
+   * Crea la reunión en dos pasos, y no por gusto.
+   *
+   * Insertar con `.select()` pide a PostgREST un `INSERT ... RETURNING`, y el
+   * `RETURNING` tiene que pasar también por la política de lectura. Esa política
+   * llama a `acta_private.can_access_meeting(id)`, que es **`STABLE`** y
+   * consulta `public.meetings` por su cuenta: dentro de la misma sentencia no
+   * ve la fila que se está insertando, de modo que devuelve falso y la
+   * inserción entera se rechaza con «new row violates row-level security
+   * policy». La fila cumple la política; lo que no puede es verse a sí misma
+   * todavía.
+   *
+   * Por eso se genera el identificador aquí, se inserta sin devolver nada y se
+   * lee después: en una sentencia nueva la fila ya existe y la política la
+   * acepta. La alternativa sería reescribir la política de lectura para que
+   * mire las columnas de la fila en vez de volver a consultar la tabla, lo que
+   * exige una migración nueva sobre producción y es decisión de quien la
+   * administra.
+   */
   async createMeeting(input: NewMeetingInput) {
-    const result = await this.db
-      .from("meetings")
-      .insert({ ...input, status: "scheduled" })
-      .select("*")
-      .single();
-    return unwrap(result, "No se pudo crear la reunión") as Meeting;
+    const id = randomUUID();
+    const { error } = await this.db.from("meetings").insert({ ...input, id, status: "scheduled" });
+    if (error) throw new Error(`No se pudo crear la reunión: ${error.message}`);
+
+    const { data, error: lectura } = await this.db.from("meetings").select("*").eq("id", id).single();
+    if (lectura) throw new Error(`No se pudo leer la reunión recién creada: ${lectura.message}`);
+    return data as Meeting;
   }
 
   async updateMeeting(id: string, patch: Partial<Meeting>) {
@@ -221,7 +277,7 @@ export class SupabaseRepository implements Repository {
       .from("meeting_participants")
       .select("*")
       .eq("meeting_id", meetingId)
-      .order("participant_type");
+      .order("participant_type").order("id");
     if (error) throw new Error(`No se pudieron listar participantes: ${error.message}`);
     return (data ?? []) as MeetingParticipant[];
   }
@@ -396,9 +452,54 @@ export class SupabaseRepository implements Repository {
     return unwrap(result, "No se pudo registrar la firma") as Signature;
   }
 
+  async signMinutes(input: SignMinutesInput): Promise<SignMinutesResult> {
+    // Toda la validación vive en la función de Postgres, que además bloquea la
+    // reunión. Replicarla aquí abriría la puerta a que ambas se desincronicen.
+    const { data, error } = await this.db.rpc("sign_minutes_verified", {
+      p_minutes_id: input.minutes_id,
+      p_signatures: input.signatures,
+      p_acceptance_text_version: input.acceptance_text_version,
+    });
+
+    if (error) {
+      // 23514 es la violación de regla de negocio que levanta la función,
+      // 42501 la falta de autorización y 22023 una entrada inválida: las tres
+      // son del usuario, no del sistema.
+      if (["23514", "42501", "22023"].includes(error.code ?? "")) {
+        throw new SigningError(error.message);
+      }
+      throw new Error(`No se pudo firmar el acta: ${error.message}`);
+    }
+
+    return data as SignMinutesResult;
+  }
+
   async createDocument(input: NewDocumentInput) {
     const result = await this.db.from("documents").insert(input).select("*").single();
     return unwrap(result, "No se pudo registrar el documento") as DocumentRecord;
+  }
+
+  async findDocumentByFingerprint(minutesId: string, fingerprint: string) {
+    const { data } = await this.db
+      .from("documents")
+      .select("*")
+      .eq("minutes_id", minutesId)
+      .eq("generation_fingerprint", fingerprint)
+      .maybeSingle();
+    return (data as DocumentRecord) ?? null;
+  }
+
+  async deleteOrphanDocument(id: string, fingerprint: string) {
+    // Con el cliente de usuario esto no borraría nada: `documents` no tiene
+    // política de DELETE, a propósito. La reparación la hace el servidor, y se
+    // acota por huella y por "sin enviar" para que no pueda ir más lejos.
+    const { error } = await this.admin
+      .from("documents")
+      .delete()
+      .eq("id", id)
+      .eq("generation_fingerprint", fingerprint)
+      .is("sent_at", null);
+    if (error) throw new Error(`No se pudo deshacer el documento: ${error.message}`);
   }
 
   async getDocument(id: string) {
@@ -414,7 +515,7 @@ export class SupabaseRepository implements Repository {
   async listDocuments(institutionId: string, filters?: { studentId?: string }) {
     let query = this.db
       .from("documents")
-      .select("*, meetings!inner(*, students!inner(*))")
+      .select(`*, meetings!inner(*, students!${MEETING_STUDENT_FK}!inner(*))`)
       .eq("meetings.institution_id", institutionId)
       .order("created_at", { ascending: false });
     if (filters?.studentId) query = query.eq("meetings.student_id", filters.studentId);
@@ -479,7 +580,7 @@ export class SupabaseRepository implements Repository {
   async listCommitments(institutionId: string, filters?: { studentId?: string }) {
     let query = this.db
       .from("commitment_tracking")
-      .select("*, meetings!inner(*, students!inner(*))")
+      .select(`*, meetings!inner(*, students!${MEETING_STUDENT_FK}!inner(*))`)
       .eq("institution_id", institutionId)
       .order("due_date", { ascending: true, nullsFirst: false });
     if (filters?.studentId) query = query.eq("meetings.student_id", filters.studentId);
@@ -529,12 +630,38 @@ export class SupabaseRepository implements Repository {
   }
 
   async putDocumentFile(path: string, bytes: Uint8Array) {
-    const { error } = await this.admin.storage
-      .from(DOCUMENTS_BUCKET)
-      .upload(path, bytes, { contentType: "application/pdf", upsert: true });
-    if (error) throw new Error(`No se pudo guardar el PDF: ${error.message}`);
+  const expectedHash = sha256Hex(bytes);
+
+  const { error } = await this.admin.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(path, bytes, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+
+  if (!error) {
     return path;
   }
+
+  // Recuperar el archivo existente sin modificarlo.
+  const existing = await this.getDocumentFile(path);
+
+  if (existing) {
+    const existingHash = sha256Hex(existing);
+
+    if (existingHash === expectedHash) {
+      return path;
+    }
+
+    throw new Error(
+      "Conflicto de integridad: existe un PDF diferente en esta ruta."
+    );
+  }
+
+  throw new Error(
+    `No se pudo guardar el PDF: ${error.message}`
+  );
+}
 
   async getDocumentFile(path: string) {
     const { data, error } = await this.admin.storage.from(DOCUMENTS_BUCKET).download(path);

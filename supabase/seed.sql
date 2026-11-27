@@ -1,10 +1,27 @@
 -- ACTA PRO — datos semilla de demostración.
 -- Todas las personas aquí son ficticias. No use datos reales de menores.
 --
--- El perfil docente requiere que exista antes el usuario en auth.users.
--- Cree la cuenta desde el panel de Supabase (Authentication → Add user) con
--- correo ana.perez@demo.actapro.ec y luego ejecute este archivo sustituyendo
--- el identificador si fuera necesario.
+-- Este archivo NO es autosuficiente, y conviene saberlo antes de ejecutarlo:
+-- el perfil docente apunta a `auth.users`, que se gestiona por la API de
+-- autenticación y no por SQL de aplicación. En una instalación limpia hay que
+-- crear primero la cuenta, o la primera inserción falla por clave foránea.
+--
+-- Desde el panel: Authentication → Add user, con el correo
+-- ana.perez@demo.actapro.ec, y después copiar el identificador que asigne.
+--
+-- En una pila local, sin pasar por el panel:
+--
+--   insert into auth.users (id, instance_id, aud, role, email,
+--                           email_confirmed_at, created_at, updated_at)
+--   values ('22222222-2222-4222-8222-222222222222',
+--           '00000000-0000-0000-0000-000000000000',
+--           'authenticated', 'authenticated', 'ana.perez@demo.actapro.ec',
+--           now(), now(), now())
+--   on conflict (id) do nothing;
+--
+-- La contraseña se establece aparte, desde el panel o con la API de
+-- administración: no se guarda ninguna en el repositorio.
+-- `scripts/verify-clean-install.mjs` hace este paso por su cuenta.
 --
 -- Los identificadores coinciden con src/lib/demo/seed-data.ts para que el modo
 -- demostración y el modo con Supabase muestren el mismo escenario.

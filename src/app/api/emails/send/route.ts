@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     const session = await requireApiSession();
     const { documentId, recipientEmail } = await readJson(request, bodySchema);
-    checkRateLimit(`email:${session.profile.id}`, 10, 60_000);
+    await checkRateLimit(session, "email", 10);
 
     const document = await session.repository.getDocument(documentId);
     if (!document) throw new ApiError(404, "El documento no existe.");

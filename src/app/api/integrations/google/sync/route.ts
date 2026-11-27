@@ -21,7 +21,7 @@ export async function POST() {
   try {
     const session = await requireApiSession();
     const env = getEnv();
-    checkRateLimit(`google-sync:${session.profile.id}`, 6, 60_000);
+    await checkRateLimit(session, "google-sync", 6);
 
     if (!isGoogleConfigured(env)) throw new ApiError(503, "Google Calendar no está configurado.");
 

@@ -1,0 +1,78 @@
+# Configuración de Netlify para ACTA PRO
+#
+# Netlify detecta Next.js por su cuenta y aplica su adaptador OpenNext sin que
+# haya que declararlo. Aquí **no** se instala `@netlify/plugin-nextjs` ni se fija
+# su versión: la documentación de Netlify recomienda explícitamente no fijarla,
+# porque el adaptador se prueba con cada versión de Next y fijarlo deja el sitio
+# atrás. Next.js 16 está soportado desde su publicación y no necesita
+# configuración distinta de la de la 15.
+#
+# Este archivo existe por tres razones concretas:
+#
+# 1. Fijar la versión de Node, para que el servidor de construcción no cambie de
+#    versión mayor por su cuenta y rompa un despliegue que ayer funcionaba.
+# 2. Declarar el comando de construcción, de modo que lo que se despliega sea lo
+#    mismo que se valida en local con `npm run build`.
+# 3. Añadir tres cabeceras de seguridad que la aplicación no emite por sí misma.
+
+[build]
+  # Las comprobaciones van **dentro** de la construcción, y ese es el punto:
+  # Netlify solo publica un despliegue si su construcción termina bien. Si los
+  # tipos, el estilo o las pruebas unitarias fallan, la construcción falla, no
+  # se publica nada y **la versión que está en pie se queda en pie**. Es la
+  # forma más simple de impedir que un despliegue defectuoso sustituya a uno
+  # estable, y no depende de ningún servicio aparte.
+  #
+  # Cuesta cerca de un minuto por construcción. Vale lo que cuesta.
+  #
+  # Lo que no cabe aquí: las pruebas SQL, de concurrencia y de integración
+  # necesitan Docker y una pila de Supabase, que el servidor de construcción de
+  # Netlify no tiene. Ésas corren en GitHub Actions (.github/workflows/ci.yml).
+  command = "npm run verify:ci && npm run build"
+  publish = ".next"
+
+[functions]
+  node_bundler = "esbuild"
+
+[build.environment]
+  # El desarrollo local usa Node 24. Aquí se fija 22 porque es la versión LTS
+  # que Netlify tiene mejor rodada; el proyecto no depende de nada posterior.
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+  # Netlify rastrea el resultado de la construcción buscando los valores de las
+  # variables de entorno, y **falla el despliegue** si encuentra alguno. Es una
+  # red de seguridad que se quiere conservar: es exactamente la comprobación de
+  # que ninguna clave privada acaba en lo que se publica.
+  #
+  # Aquí solo se eximen las variables que son públicas por definición. Next
+  # incrusta en el código todo lo que empieza por `NEXT_PUBLIC_`, de modo que
+  # aparecer es su trabajo, no una fuga. **Ninguna clave privada se exime**: si
+  # el rastreo señala `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`,
+  # `DEEPGRAM_API_KEY`, `RESEND_API_KEY`, `GOOGLE_CLIENT_SECRET` o
+  # `TOKEN_ENCRYPTION_KEY`, eso es un fallo real y hay que arreglarlo, no
+  # silenciarlo añadiéndolo a esta lista.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,NEXT_PUBLIC_APP_URL,NEXT_PUBLIC_DEEPGRAM_MODEL,NEXT_PUBLIC_DEEPGRAM_LANGUAGE"
+
+# El proxy de Next.js añade la política de contenido con un nonce por petición.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # El acta de un estudiante no tiene por qué poder incrustarse en otro sitio.
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # El navegador solo necesita el micrófono, y solo desde el propio origen.
+    Permissions-Policy = "camera=(), geolocation=(), microphone=(self)"
+
+# Suelo de caché para las rutas de API que no declaran la suya.
+#
+# Conviene no exagerar lo que hace: una cabecera puesta aquí **no sustituye** a
+# la que emite la función. Comprobado sobre el despliegue, `/api/health/integrations`
+# responde `cache-control: no-cache`, que es el de Next, no este. Donde importa
+# de verdad —la descarga del PDF— la cabecera correcta la pone la propia ruta,
+# que responde `private, no-store`. Esto cubre solo las rutas que no dicen nada.
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "private, no-store"

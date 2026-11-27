@@ -2,8 +2,7 @@ import type { NextConfig } from "next";
 
 /**
  * Encabezados de seguridad aplicados a toda la aplicación.
- * No se define CSP con `unsafe-inline` para scripts: Next.js necesita nonces,
- * que se añadirán junto con el endurecimiento previo a producción.
+ * El proxy genera la política de contenido por petición.
  */
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },

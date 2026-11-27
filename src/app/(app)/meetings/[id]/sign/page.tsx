@@ -1,3 +1,4 @@
+import { signatureMethodLabel } from "@/lib/signature-method";
 import type { Metadata } from "next";
 
 import { Alert } from "@/components/ui/alert";
@@ -73,12 +74,20 @@ export default async function SignPage({ params }: { params: Promise<{ id: strin
     <div className="space-y-8">
       <MeetingHeader detail={detail} current="sign" />
 
+      {signatures.length > 0 && (
+        <ul aria-label="Verificación de las firmas">
+          {signatures.map((signature) => (
+            <li key={signature.id}>{signature.signer_name} · {signatureMethodLabel(signature.verification_method)}</li>
+          ))}
+        </ul>
+      )}
       {!hasRepresentative ? (
         <Alert tone="danger" title="Falta el representante entre los participantes">
           El acta requiere la firma de la persona docente y la del representante. Vuelva al paso de participantes.
         </Alert>
       ) : (
         <SignPanel
+          verifyIdentity={session.mode === "supabase"}
           minutesId={record.id}
           signers={signers}
           alreadySigned={signatures.length > 0}

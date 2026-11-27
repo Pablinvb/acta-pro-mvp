@@ -2,6 +2,7 @@ import type { Minutes } from "@/lib/schemas/minutes";
 import type {
   AuditAction,
   AuditLog,
+  DocumentKind,
   CommitmentStatus,
   CommitmentTracking,
   CommitmentWithContext,
@@ -55,6 +56,38 @@ export interface NewSignatureInput {
   acceptance_text_version: string;
 }
 
+/**
+ * Firma completa de un acta. El registro de las firmas y la finalización de
+ * la reunión forman una sola operación: o se aplican ambas, o ninguna.
+ */
+export interface SignMinutesInput {
+  minutes_id: string;
+  acceptance_text_version: string;
+  signatures: {
+    signer_name: string;
+    signer_role: ParticipantType;
+    signature_path: string;
+  }[];
+}
+
+export interface SignMinutesResult {
+  /** La reunión ya estaba firmada con exactamente este contenido. */
+  already_signed: boolean;
+  meeting_id: string;
+  signatures: number;
+}
+
+/**
+ * Rechazo controlado de una firma: el estado no permite firmar, falta una
+ * firma obligatoria, o se repite la operación con contenido distinto.
+ */
+export class SigningError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SigningError";
+  }
+}
+
 export interface NewDocumentInput {
   minutes_id: string;
   meeting_id: string;
@@ -62,6 +95,8 @@ export interface NewDocumentInput {
   sha256: string;
   document_code: string;
   version: number;
+  generation_fingerprint: string;
+  kind: DocumentKind;
 }
 
 export interface AuditInput {
@@ -86,6 +121,7 @@ export interface DocumentListItem {
  */
 export interface Repository {
   readonly kind: "demo" | "supabase";
+  consumeRequest?(actor: string, operation: string, limit: number): Promise<boolean>;
 
   getInstitution(id: string): Promise<Institution | null>;
   getProfile(id: string): Promise<Profile | null>;
@@ -126,7 +162,32 @@ export interface Repository {
   listSignatures(minutesId: string): Promise<Signature[]>;
   addSignature(input: NewSignatureInput): Promise<Signature>;
 
+  /**
+   * Firma el acta y finaliza la reunión en una sola transacción. Es la única
+   * vía admitida: la escritura directa sobre `signatures` está revocada en
+   * Postgres para que no se pueda eludir.
+   */
+  signMinutes(input: SignMinutesInput): Promise<SignMinutesResult>;
+
   createDocument(input: NewDocumentInput): Promise<DocumentRecord>;
+  /**
+   * Documento ya generado para exactamente estos datos de entrada, si existe.
+   * Es lo que evita fabricar un duplicado cuando nada ha cambiado.
+   */
+  findDocumentByFingerprint(
+    minutesId: string,
+    fingerprint: string,
+  ): Promise<DocumentRecord | null>;
+  /**
+   * Compensación: deshace un registro recién creado cuando el archivo no se
+   * pudo guardar, para no dejar una fila que apunte a un PDF inexistente.
+   *
+   * Exige la huella y solo alcanza a documentos sin enviar, de modo que no
+   * pueda borrar un acta ya entregada ni un registro ajeno a esta generación.
+   * Los documentos son evidencia: no hay borrado para el usuario, solo esta
+   * reparación del servidor.
+   */
+  deleteOrphanDocument(id: string, fingerprint: string): Promise<void>;
   getDocument(id: string): Promise<DocumentRecord | null>;
   updateDocument(id: string, patch: Partial<DocumentRecord>): Promise<DocumentRecord>;
   listDocuments(institutionId: string, filters?: { studentId?: string }): Promise<DocumentListItem[]>;

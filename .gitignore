@@ -54,3 +54,17 @@ tokens.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supabase CLI
+supabase/.temp/
+supabase/.branches/
+# Consultas sueltas de Supabase Studio: borradores, no fuente de verdad.
+# Las pruebas reales viven en supabase/tests/security/.
+supabase/snippets/
+
+# Los respaldos contienen datos personales: nunca bajo control de versiones.
+acta-pro-respaldos/
+respaldos/
+
+# Netlify: estado local del enlace con el sitio, no es del repositorio
+.netlify/

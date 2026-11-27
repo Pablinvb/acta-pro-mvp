@@ -29,10 +29,12 @@ export function SignPanel({
   minutesId,
   signers,
   alreadySigned,
+  verifyIdentity,
   existingDocument,
   emailAvailable,
   representativeEmail,
 }: {
+  verifyIdentity: boolean;
   minutesId: string;
   signers: Signer[];
   alreadySigned: boolean;
@@ -49,7 +51,20 @@ export function SignPanel({
   const [emailState, setEmailState] = useState<{ sent: boolean; simulated: boolean; message: string } | null>(null);
 
   const required = signers.filter((signer) => signer.role === "teacher" || signer.role === "representative");
-  const ready = required.every((signer) => drawings[signer.id] && accepted[signer.id]);
+  const [password,setPassword] = useState("");
+  const [code,setCode] = useState("");
+  const [codeSent,setCodeSent] = useState(false);
+  async function requestCode() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/minutes/${minutesId}/verification`,{method:"POST"});
+      if (!response.ok) throw new Error((await response.json()).error);
+      setCodeSent(true);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo enviar el código."); }
+    finally { setBusy(false); }
+  }
+  const ready = (!verifyIdentity || (password.length > 0 && code.length === 6)) && required.every((signer) => drawings[signer.id] && accepted[signer.id]);
 
   async function generateDocument(): Promise<DocumentResult> {
     const response = await fetch(`/api/documents/${minutesId}/pdf`, { method: "POST" });
@@ -66,6 +81,7 @@ export function SignPanel({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          ...(verifyIdentity ? {password,code} : {}),
           signatures: required.map((signer) => ({
             signer_name: signer.name,
             signer_role: signer.role,
@@ -77,6 +93,8 @@ export function SignPanel({
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "No se pudieron registrar las firmas.");
 
+      setPassword("");
+      setCode("");
       setDocument(await generateDocument());
       router.refresh();
     } catch (signError) {
@@ -143,6 +161,17 @@ export function SignPanel({
             </CardDescription>
           </CardHeader>
           <CardBody className="space-y-8">
+            {verifyIdentity && (
+              <div className="grid gap-3">
+                <label>Contraseña docente <input type="password" autoComplete="current-password"
+                  value={password} onChange={event=>setPassword(event.target.value)} /></label>
+                <Button type="button" variant="secondary" disabled={busy} onClick={requestCode}>
+                  {codeSent ? "Reenviar código al correo registrado" : "Enviar código al representante"}
+                </Button>
+                <label>Código del representante <input autoComplete="one-time-code" inputMode="numeric" maxLength={6}
+                  value={code} onChange={event=>setCode(event.target.value)} /></label>
+              </div>
+            )}
             {required.map((signer) => (
               <div key={signer.id} className="space-y-3">
                 <SignaturePad

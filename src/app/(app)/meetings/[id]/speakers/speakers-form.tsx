@@ -44,6 +44,7 @@ export function SpeakersForm({
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
+  const [jobState, setJobState] = useState("");
   const order = speakers.map((speaker) => speaker.label);
 
   async function generate() {
@@ -55,8 +56,33 @@ export function SpeakersForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ meetingId }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; jobId?: string; state?: string; dispatchToken?: string };
       if (!response.ok) throw new Error(payload.error ?? "No se pudo generar el borrador.");
+      if (payload.jobId) {
+        const params = new URLSearchParams({ meetingId, jobId: payload.jobId });
+        let state = payload.state;
+        const deadline = Date.now() + 20 * 60_000;
+        let lastDispatch = 0;
+        while (state && ["queued","reserved","running","generated"].includes(state)) {
+          if ((state === "queued" || state === "generated") && Date.now() - lastDispatch > 60_000) {
+            // La petición del navegador conserva la protección privada del sitio.
+            const launched = await fetch("/.netlify/functions/minutes-background", {
+              method:"POST", headers:{"X-Acta-Job":payload.dispatchToken!}, body:payload.jobId,
+            });
+            if (launched.status !== 202) throw new Error("Netlify no aceptó el trabajo. Puede reanudarlo desde esta pantalla.");
+            lastDispatch = Date.now();
+          }
+          setJobState(state === "queued" ? "En cola…" : "Redactando el borrador…");
+          if (Date.now() > deadline) throw new Error("Consulte de nuevo el estado del trabajo.");
+          await new Promise(resolve => setTimeout(resolve, 4000));
+          const status = await fetch("/api/minutes/generate/status?" + params, { cache: "no-store" });
+          if (!status.ok) throw new Error("No se pudo consultar el estado del trabajo.");
+          state = (await status.json()).state;
+        }
+        if (state !== "completed") throw new Error(state === "uncertain"
+          ? "La generación se interrumpió. Se requiere revisión antes de consumir más créditos."
+          : "El trabajo no pudo generar el acta. Revise la transcripción.");
+      }
       router.push(`/meetings/${meetingId}/minutes`);
       router.refresh();
     } catch (error) {
@@ -148,7 +174,7 @@ export function SpeakersForm({
           ) : null}
           <Button size="lg" onClick={generate} disabled={generating}>
             <SparkIcon className="size-4.5" />
-            {generating ? "Generando borrador…" : "Generar borrador con IA"}
+            {generating ? (jobState || "Generando borrador…") : "Generar borrador con IA"}
           </Button>
           <p className="text-xs text-ink-subtle">
             Guarde primero la asignación de hablantes: el borrador atribuye cada intervención según esa

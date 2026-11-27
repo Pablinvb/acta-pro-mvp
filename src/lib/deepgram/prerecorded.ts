@@ -23,7 +23,7 @@ interface DeepgramPrerecordedResponse {
  * Es la ruta de recuperación cuando el streaming falla o quedan segmentos sin
  * confirmar. Devuelve exactamente el mismo esquema que la capa en vivo.
  */
-export async function transcribePrerecorded(audio: ArrayBuffer, mimeType: string): Promise<PrerecordedResult> {
+export async function transcribePrerecorded(audio: ArrayBuffer | { url: string }, mimeType: string): Promise<PrerecordedResult> {
   const env = getEnv();
   if (!env.DEEPGRAM_API_KEY) {
     throw new ApiError(503, "Deepgram no está configurado.");
@@ -48,7 +48,7 @@ export async function transcribePrerecorded(audio: ArrayBuffer, mimeType: string
       authorization: `Token ${env.DEEPGRAM_API_KEY}`,
       "content-type": mimeType,
     },
-    body: audio,
+    body: audio instanceof ArrayBuffer ? audio : JSON.stringify(audio),
   });
 
   if (!response.ok) {
