@@ -2,9 +2,9 @@
 
 **Menos trámites. Más educación.**
 
-Acta Pro ayuda al docente a documentar las reuniones con familias y autoridades. A partir de una conversación grabada con consentimiento, prepara un borrador de acta que vincula cada acuerdo con el fragmento que lo respalda. El docente revisa y aprueba el documento antes de recoger las firmas. Después puede consultar quién asumió cada compromiso y actualizar su avance.
+Acta Pro ayuda al docente a documentar las reuniones con familias y autoridades. A partir de una conversación grabada con consentimiento, prepara un borrador de acta que vincula cada acuerdo con el fragmento de la transcripción que lo respalda. El docente revisa y aprueba el documento antes de recoger las firmas. Después puede consultar quién asumió cada compromiso y actualizar su avance.
 
-[Cómo funciona](#cómo-funciona) · [Probar el MVP](#probar-el-mvp) · [Arquitectura](#arquitectura-del-mvp) · [Impacto](#impacto-y-modelo-de-negocio)
+[Cómo funciona](#cómo-funciona) · [Ejecutar el MVP en local](#ejecutar-el-mvp-en-local) · [Arquitectura](#arquitectura-del-mvp) · [Impacto](#impacto-y-modelo-de-negocio)
 
 ## Cómo funciona
 
@@ -23,7 +23,7 @@ flowchart TD
     class D revision
 ```
 
-**La IA propone. El docente revisa y decide.** El micrófono se habilita cuando todos los participantes han dado su consentimiento. El tablero conserva el responsable y la fecha que constan en el acta. El docente registra el avance de cada compromiso.
+**La IA propone. El docente revisa y decide.** El micrófono se habilita cuando todos los participantes han dado su consentimiento. El tablero muestra quién asumió cada compromiso y qué fecha se acordó. Allí, el docente registra los avances.
 
 | Usuario | Qué aporta Acta Pro |
 | --- | --- |
@@ -32,7 +32,7 @@ flowchart TD
 | Representante | Puede consultar el documento firmado y los compromisos acordados. |
 | Estudiante | Recibe acompañamiento a partir de acuerdos que la institución y la familia pueden retomar. |
 
-## Probar el MVP
+## Ejecutar el MVP en local
 
 ```bash
 git clone https://github.com/Pablinvb/acta-pro-mvp.git
@@ -41,18 +41,18 @@ npm install
 npm run dev
 ```
 
-Abra <http://localhost:3000> y use las credenciales de demostración que aparecen en pantalla. El modo demo funciona sin claves de API. **Cargar transcripción de demostración** permite probar la revisión, las firmas, el PDF y el seguimiento con datos ficticios. La interfaz identifica las simulaciones. Sin Supabase, reiniciar el servidor restablece los datos iniciales.
+Abra <http://localhost:3000> y use las credenciales de demostración que aparecen en pantalla. El modo de demostración funciona sin claves de API. **Cargar transcripción de demostración** permite probar la revisión, las firmas, el PDF y el seguimiento con datos ficticios. La interfaz identifica las simulaciones. Sin Supabase, reiniciar el servidor restablece los datos iniciales.
 
 ## Arquitectura del MVP
 
-**Captura y transcripción.** El MVP captura el audio desde el navegador y utiliza Deepgram para transcribirlo. La arquitectura objetivo contempla **PLAUD** como dispositivo opcional de grabación. Su conexión directa con Acta Pro está pendiente de confirmación.
+**Captura y transcripción.** En el MVP, el navegador captura el audio y Deepgram lo transcribe. El diseño del proyecto contempla **PLAUD** como grabadora opcional. La integración directa del dispositivo con Acta Pro está pendiente de confirmación.
 
 ```mermaid
 flowchart TD
     N["Navegador del docente"] -->|"Reuniones y revisión"| A["Acta Pro · Next.js"]
     N <-->|"Audio y transcripción"| D["Deepgram"]
     A -->|"Token temporal"| N
-    A -->|"Generación del borrador"| I["Anthropic"]
+    A -->|"Generación del borrador"| I["Claude · Anthropic API"]
     A -->|"Sesiones, datos y PDF"| S["Supabase"]
     A -->|"Correo opcional"| R["Resend"]
     G["Google Calendar"] -->|"Reuniones seleccionadas"| A
@@ -64,8 +64,8 @@ flowchart TD
 
 | Servicio | Función en el modo real |
 | --- | --- |
-| Deepgram | Transcribe la conversación y separa las intervenciones por hablante. El docente confirma la identidad de cada persona. |
-| Anthropic | Organiza los temas, hechos y acuerdos en un borrador con referencias a la transcripción. |
+| Deepgram | Transcribe la conversación y separa las intervenciones por hablante. El docente indica a qué participante corresponde cada voz. |
+| Claude (Anthropic API) | Organiza los temas, hechos y acuerdos en un borrador con referencias a la transcripción. |
 | Supabase | Gestiona la autenticación, la base de datos y el almacenamiento privado de los PDF. |
 | Resend y Google Calendar | Integraciones opcionales para enviar el acta por correo e importar reuniones seleccionadas, respectivamente. |
 
@@ -74,7 +74,7 @@ flowchart TD
 | Control | Alcance |
 | --- | --- |
 | Audio | El sistema lo procesa para transcribirlo y lo descarta. |
-| Revisión | La transcripción original se conserva. Las correcciones se registran como versiones del acta. |
+| Revisión | La transcripción original se conserva. Cada corrección queda registrada en una versión del acta. |
 | Firmas | El docente y el representante firman en el mismo dispositivo. Se recogen firmas manuscritas digitalizadas. La verificación de identidad de los firmantes está pendiente. |
 | Integridad | Una huella SHA-256 permite comprobar si el PDF cambió después de archivarse. La descarga requiere autenticación y comprobación de la institución. |
 | Datos escolares | El proveedor simulado de estudiantes utiliza datos ficticios. La integración con Runachay está fuera del alcance actual. |
@@ -87,7 +87,7 @@ Acta Pro propone una suscripción institucional mensual o anual según el númer
 | --- | ---: |
 | Tiempo de documentación por reunión | De 30 a 5 minutos |
 | Reducción del tiempo de documentación | 83,3 % |
-| Capacidad recuperada con 50 docentes y 4 reuniones mensuales por docente | 83,3 horas al mes |
+| Tiempo que se estima recuperar con 50 docentes y 4 reuniones mensuales por docente | 83,3 horas al mes |
 
 ## Documentación técnica
 
@@ -169,14 +169,14 @@ supabase db execute --file supabase/seed.sql
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Compilación de producción |
 | `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript sin emitir |
+| `npm run typecheck` | Comprueba los tipos de TypeScript sin generar archivos |
 | `npm test` | Pruebas unitarias y con mocks (Vitest) |
 | `npm run test:coverage` | Cobertura de `src/lib` |
-| `npm run test:e2e` | Prueba end-to-end del camino feliz (Playwright) |
-| `npm run test:smoke` | Pruebas contra APIs reales; cada una se omite si falta su clave |
+| `npm run test:e2e` | Prueba de extremo a extremo del flujo principal (Playwright) |
+| `npm run test:smoke` | Pruebas de integración con servicios externos. Se omiten las que requieren una clave ausente |
 | `npm run check:env` | Presencia y formato de variables, sin imprimir valores |
 
-La prueba end-to-end levanta su propio servidor en el puerto `3100` y necesita el navegador de Playwright:
+La prueba de extremo a extremo inicia su propio servidor en el puerto `3100` y necesita el navegador de Playwright:
 
 ```bash
 npx playwright install chromium
@@ -237,17 +237,17 @@ npm run check:env   # presencia y formato, sin imprimir valores
 ```
 
 ```bash
-npm run test:smoke  # golpea las APIs reales; omite lo que no tenga clave
+npm run test:smoke  # prueba los servicios externos que tienen una clave configurada
 ```
 
-Con la aplicación levantada, `GET /api/health/integrations` devuelve solo etiquetas de estado.
+Con la aplicación en ejecución, `GET /api/health/integrations` devuelve solo etiquetas de estado.
 
 Tres fallos habituales y cómo se comporta la aplicación ante cada uno:
 
 | Síntoma | Causa | Comportamiento |
 | --- | --- | --- |
-| «Supabase no responde» | El proyecto está pausado o borrado, o `NEXT_PUBLIC_SUPABASE_URL` tiene una errata. Compruébelo con `nslookup <ref>.supabase.co`: si el dominio no existe, el proyecto tampoco. | Con `DEMO_MODE=true` continúa en memoria y lo advierte en rojo. Con `DEMO_MODE=false` falla de forma visible: no sustituye datos reales por ficticios. |
-| «La clave de Deepgram no tiene permiso para emitir tokens temporales» | La clave autentica pero le falta alcance sobre `/v1/auth/grant`. Cree una con rol de propietario o administrador del proyecto. | La transcripción en vivo se deshabilita; al finalizar transcribe el audio completo por la ruta pregrabada, que usa la misma clave y sí funciona. |
+| «Supabase no responde» | El proyecto está pausado o borrado, o `NEXT_PUBLIC_SUPABASE_URL` tiene una errata. Compruébelo con `nslookup <ref>.supabase.co`: si el dominio no se resuelve, revise la URL y el estado del proyecto en Supabase. | Con `DEMO_MODE=true` continúa en memoria y lo advierte en rojo. Con `DEMO_MODE=false` falla de forma visible: no sustituye datos reales por ficticios. |
+| «La clave de Deepgram no tiene permiso para emitir tokens temporales» | La clave es válida, pero carece del permiso necesario para `/v1/auth/grant`. Cree una con rol de propietario o administrador del proyecto. | La transcripción en vivo se deshabilita; al finalizar transcribe el audio completo por la ruta pregrabada, que usa la misma clave y sí funciona. |
 | El acta sale rotulada «Borrador de demostración» | Falta `ANTHROPIC_API_KEY`. | Usa el generador determinístico y lo declara en la propia acta. Nunca presenta como análisis algo que no lo fue. |
 
 El botón **Cargar transcripción de demostración** funciona siempre que `DEMO_MODE=true`, incluso con Deepgram configurado: es el plan B de la demostración y su respuesta viene marcada como simulada.
@@ -262,7 +262,7 @@ El botón **Cargar transcripción de demostración** funciona siempre que `DEMO_
 - Row Level Security en todas las tablas con datos institucionales.
 - Los tokens de Google se guardan cifrados con AES-256-GCM.
 - Los registros de consola no contienen transcripciones, firmas, correos ni secretos: solo recuentos e identificadores.
-- La transcripción original es inmutable: las correcciones viven como versiones del acta.
+- La transcripción original es inmutable: las correcciones se guardan en versiones del acta.
 
 </details>
 
