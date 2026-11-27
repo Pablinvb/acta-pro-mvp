@@ -264,9 +264,8 @@ transcripciones, ni imágenes de firma, ni cuerpos de correo.
   cualificada ni certificada.** Es un trazo dibujado en pantalla guardado como
   PNG. No acredita identidad. Su valor depende de que la persona firme
   presencialmente y de las políticas de la institución.
-- El límite de tasa de la aplicación es **por proceso**: con varias instancias
-  el tope efectivo se multiplica.
-- No hay Content Security Policy con nonces.
+- Las sesiones de Supabase usan contadores por cuenta y operación en Postgres con la migración de servicios. El modo demostración utiliza memoria del proceso.
+- El proxy de la nueva versión emite una Content Security Policy con nonce por petición.
 - Los textos de consentimiento y aceptación son borradores institucionales
   **pendientes de revisión jurídica**.
 - **Todo lo descrito en esta página está vivo en las dos bases**, local y

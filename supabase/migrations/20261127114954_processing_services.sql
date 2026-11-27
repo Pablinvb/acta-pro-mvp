@@ -157,7 +157,7 @@ END;
 $$;
 REVOKE ALL ON FUNCTION acta_private.clear_signing_proof() FROM PUBLIC,anon,authenticated;
 CREATE TRIGGER consume_identity AFTER UPDATE OF status ON public.meetings FOR EACH ROW
-  WHEN (NEW.status='signed' AND OLD.status IS DISTINCT FROM NEW.status)
+  WHEN (OLD.status='approved' AND OLD.status IS DISTINCT FROM NEW.status)
   EXECUTE FUNCTION acta_private.clear_signing_proof();
 
 CREATE TABLE public.recovery_uploads (
