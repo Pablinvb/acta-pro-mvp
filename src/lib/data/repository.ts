@@ -121,6 +121,7 @@ export interface DocumentListItem {
  */
 export interface Repository {
   readonly kind: "demo" | "supabase";
+  consumeRequest?(actor: string, operation: string, limit: number): Promise<boolean>;
 
   getInstitution(id: string): Promise<Institution | null>;
   getProfile(id: string): Promise<Profile | null>;

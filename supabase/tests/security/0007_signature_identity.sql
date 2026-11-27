@@ -98,6 +98,7 @@ UPDATE public.meetings SET status='approved'
 
 -- --------------------------------- W · lo que queda registrado al firmar
 
+SELECT pg_temp.prepare_signing_fixture('a7000000-0000-4000-8000-0000000000d1','Madre');
 SET LOCAL request.jwt.claims =
   '{"sub":"a7000000-0000-4000-8000-000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
@@ -113,13 +114,13 @@ SELECT pg_temp.expect('W2 signed_by es la sesion que firmo, no un texto enviado'
     WHERE minutes_id = 'a7000000-0000-4000-8000-0000000000d1'
       AND signed_by = 'a7000000-0000-4000-8000-000000000001'));
 
-SELECT pg_temp.expect('W3 la firma docente queda como sesion verificada',
-  (SELECT verification_method = 'sesion_verificada' FROM public.signatures
+SELECT pg_temp.expect('W3 la firma docente queda como docente reautenticado',
+  (SELECT verification_method = 'docente_reautenticado' FROM public.signatures
     WHERE minutes_id = 'a7000000-0000-4000-8000-0000000000d1'
       AND signer_role = 'teacher'));
 
-SELECT pg_temp.expect('W4 la del representante, presencial atestiguada',
-  (SELECT verification_method = 'presencial_atestiguada' FROM public.signatures
+SELECT pg_temp.expect('W4 la del representante, codigo por correo',
+  (SELECT verification_method = 'codigo_correo' FROM public.signatures
     WHERE minutes_id = 'a7000000-0000-4000-8000-0000000000d1'
       AND signer_role = 'representative'));
 
@@ -151,7 +152,7 @@ SELECT pg_temp.expect('X3 tras los intentos, los valores siguen intactos',
   (SELECT count(*) = 1 FROM public.signatures
     WHERE minutes_id = 'a7000000-0000-4000-8000-0000000000d1'
       AND signer_role = 'representative'
-      AND verification_method = 'presencial_atestiguada'
+      AND verification_method = 'codigo_correo'
       AND signed_by = 'a7000000-0000-4000-8000-000000000001'));
 
 -- --------------------------------- Y · el dominio de valores esta acotado
@@ -164,12 +165,12 @@ SELECT pg_temp.expect_failure('Y1 un metodo desconocido se rechaza',
              'aceptacion-v1', 'confianza_ciega')$q$);
 
 SELECT pg_temp.expect('Y2 el valor por defecto no presume verificacion',
-  (SELECT column_default LIKE '%presencial_atestiguada%'
+  (SELECT column_default = '''no_registrado''::text'
      FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'signatures'
       AND column_name = 'verification_method'));
 
-SELECT pg_temp.expect('Y3 codigo_correo esta reservado para cuando se decida',
+SELECT pg_temp.expect('Y3 codigo_correo esta permitido',
   (SELECT pg_get_constraintdef(oid) LIKE '%codigo_correo%'
      FROM pg_constraint
     WHERE conrelid = 'public.signatures'::regclass
@@ -178,7 +179,7 @@ SELECT pg_temp.expect('Y3 codigo_correo esta reservado para cuando se decida',
 -- --------------------------------- Z · la auditoria lo deja por escrito
 
 SELECT pg_temp.expect('Z1 la auditoria registra como se verifico cada firma',
-  (SELECT metadata_json->'verification_methods'->>'teacher' = 'sesion_verificada'
+  (SELECT metadata_json->'verification_methods'->>'teacher' = 'docente_reautenticado'
      FROM public.audit_logs
     WHERE meeting_id = 'a7000000-0000-4000-8000-0000000000c1'
       AND action = 'minutes.signed'

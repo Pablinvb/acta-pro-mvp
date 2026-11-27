@@ -25,13 +25,13 @@ import { tmpdir } from "node:os";
 const PROJECT_ID = "acta-pro-clean";
 const CONTAINER = `supabase_db_${PROJECT_ID}`;
 const PORTS = {
-  api: 54421,
-  db: 54422,
-  shadow: 54420,
-  studio: 54423,
-  smtp: 54424,
-  analytics: 54427,
-  pooler: 54429,
+  api: 45421,
+  db: 45422,
+  shadow: 45420,
+  studio: 45423,
+  smtp: 45424,
+  analytics: 45427,
+  pooler: 45429,
   inspector: 8183,
 };
 

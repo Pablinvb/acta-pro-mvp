@@ -81,6 +81,7 @@ ALTER TABLE public.meetings
     DISABLE TRIGGER protect_meeting_status_trigger,
     DISABLE TRIGGER revoke_approval_on_reopen_trigger;
 
+ALTER TABLE public.signatures DISABLE TRIGGER verify_identity;
 DO $fixture$
 DECLARE
     states text[] := ARRAY['scheduled','ready','recording','processing',
@@ -126,6 +127,7 @@ BEGIN
     END LOOP;
 END;
 $fixture$;
+ALTER TABLE public.signatures ENABLE TRIGGER verify_identity;
 
 ALTER TABLE public.meetings
     ENABLE TRIGGER protect_meeting_creation_trigger,

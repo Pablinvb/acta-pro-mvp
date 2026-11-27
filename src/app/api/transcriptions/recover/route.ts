@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 import { requireApiSession, requireMeetingAccess } from "@/lib/session";
@@ -34,7 +36,7 @@ function demoSegments(): NormalizedSegment[] {
 export async function POST(request: Request) {
   try {
     const session = await requireApiSession();
-    checkRateLimit(`recover:${session.profile.id}`, 10, 60_000);
+    await checkRateLimit(session, "recover", 10);
 
     const form = await request.formData();
     const meetingId = String(form.get("meetingId") ?? "");
@@ -78,6 +80,21 @@ export async function POST(request: Request) {
       recovered = demoSegments();
       duration = DEMO_TRANSCRIPT_DURATION_SECONDS;
       simulated = true;
+    } else if (form.has("uploadId") && isDeepgramConfigured(env)) {
+      if (session.mode !== "supabase") throw new ApiError(403,"Se requiere sesión docente.");
+      const id = z.uuid().parse(form.get("uploadId"));
+      const path = [session.institution.id,meetingId,session.profile.id,id].join("/");
+      const db = createSupabaseAdminClient();
+      const upload = await db.from("recovery_uploads").select("id").eq("id",id)
+        .eq("object_path",path).gt("expires_at",new Date().toISOString()).maybeSingle();
+      if (!upload.data) throw new ApiError(404,"La carga no está disponible.");
+      const bucket = db.storage.from("acta-audio-recovery");
+      const signed = await bucket.createSignedUrl(path,300);
+      if (signed.error) throw new ApiError(404,"Audio privado no disponible.");
+      const result = await transcribePrerecorded({url:signed.data.signedUrl},"application/json");
+      recovered = result.segments;
+      duration = result.duration;
+      await bucket.remove([path]);
     } else if (isDeepgramConfigured(env)) {
       const file = form.get("audio");
       if (!(file instanceof File)) throw new ApiError(400, "Falta el archivo de audio.");
@@ -126,10 +143,7 @@ export async function POST(request: Request) {
       metadata_json: { segments: saved.length, simulated },
     });
 
-    // El audio nunca se persiste en el servidor: solo existe en memoria
-    // durante esta petición y se descarta al responder. Las banderas
-    // KEEP_AUDIO_AFTER_TRANSCRIPTION y DEMO_KEEP_AUDIO controlan únicamente si
-    // el navegador conserva su copia local para reintentos.
+    // Las cargas privadas pendientes de limpieza caducan mediante recover-jobs.
     return NextResponse.json({
       text: saved.map((segment) => segment.text).join(" "),
       duration,

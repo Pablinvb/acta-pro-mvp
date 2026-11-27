@@ -21,13 +21,13 @@ import { tmpdir } from "node:os";
 const PROJECT_ID = "acta-pro-restore";
 const CONTAINER = `supabase_db_${PROJECT_ID}`;
 const PORTS = {
-  api: 54431,
-  db: 54432,
-  shadow: 54430,
-  studio: 54433,
-  smtp: 54434,
-  analytics: 54437,
-  pooler: 54439,
+  api: 45431,
+  db: 45432,
+  shadow: 45430,
+  studio: 45433,
+  smtp: 45434,
+  analytics: 45437,
+  pooler: 45439,
   inspector: 8193,
 };
 
@@ -193,10 +193,17 @@ try {
   const vacia = escalar("select count(*) from information_schema.tables where table_schema = 'public'");
   anotar("Base de partida sin tablas de la aplicación", vacia === "0", `${vacia} tabla(s) en public`);
 
+  if (vacia !== "0") throw new Error("la base de ensayo ya contiene tablas");
+  // pg_dump enumera las concesiones del origen. Las concesiones predeterminadas
+  // de la pila vacía se sumarían a ellas al crear las tablas restauradas.
+  escalar("ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated, service_role");
   const esquema = cargar("esquema.sql");
   anotar("Estructura restaurada", esquema.ok, esquema.ok ? "esquema.sql" : esquema.error);
   if (!esquema.ok) throw new Error("la estructura no se restauró");
 
+  const permisos = escalar("SELECT NOT has_table_privilege('anon','public.meetings','SELECT') AND NOT has_table_privilege('authenticated','public.signatures','UPDATE') AND NOT has_table_privilege('authenticated','public.audit_logs','TRUNCATE')");
+  anotar("Permisos restaurados de la aplicación", permisos === "t");
+  if (permisos !== "t") throw new Error("permisos distintos de los esperados");
   const nuestros = ["public", "acta_legacy_20261124"];
   const datos = cargar("datos.sql", filtrar("datos.sql", nuestros));
   anotar("Datos de la institución restaurados", datos.ok, datos.ok ? nuestros.join(", ") : datos.error);
@@ -256,6 +263,7 @@ try {
 
   console.log(`\n  Inventario restaurado: ${inventario.join(", ")}`);
 } catch (error) {
+  anotar("Ensayo completado", false);
   console.error(`\n  Interrumpido: ${error.message}`);
 } finally {
   if (levantada && !keep) {

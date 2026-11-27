@@ -13,6 +13,7 @@
  * luego se revierte. Por eso el guion limpia sus propios datos al empezar y al
  * terminar, y usa identificadores fijos y reconocibles.
  */
+import { readFileSync } from "node:fs";
 import { delay, psql, psqlAsync, psqlScalar, resolveLocalContainer } from "./local-target.mjs";
 
 const ID = {
@@ -65,6 +66,7 @@ ALTER TABLE public.signatures DISABLE TRIGGER protect_finalized_signatures_trigg
 ALTER TABLE public.minutes DISABLE TRIGGER protect_finalized_minutes_trigger;
 DELETE FROM public.audit_logs WHERE institution_id = '${ID.institution}';
 DELETE FROM public.meetings WHERE institution_id = '${ID.institution}';
+DELETE FROM public.representatives WHERE id IN (${SCENARIOS.map((_,index)=>"'" + minutes(index+1) + "'").join(",")});
 DELETE FROM public.students WHERE institution_id = '${ID.institution}';
 DELETE FROM public.profiles WHERE institution_id = '${ID.institution}';
 DELETE FROM public.institutions WHERE id = '${ID.institution}';
@@ -112,6 +114,9 @@ UPDATE public.meetings SET status = 'approved'   WHERE institution_id = '${ID.in
 
 INSERT INTO public.minutes (id, meeting_id, version, status, summary, approved_at)
 VALUES ${minutesRows};
+${readFileSync("tests/integration/signing-fixture.sql","utf8")}
+SELECT pg_temp.prepare_signing_fixture(a.id,'Representante') FROM public.minutes a
+JOIN public.meetings m ON m.id=a.meeting_id WHERE m.institution_id='${ID.institution}';
 COMMIT;
 `,
   );

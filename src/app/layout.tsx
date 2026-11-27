@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 
@@ -24,7 +25,8 @@ export const viewport: Viewport = {
   themeColor: "#0b1f66",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await connection();
   return (
     <html lang="es-EC" className={inter.variable}>
       <body className="min-h-dvh antialiased">{children}</body>

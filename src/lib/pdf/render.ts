@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256Hex } from "@/lib/crypto/hash";
 
 import type { Minutes } from "@/lib/schemas/minutes";
 import type { MeetingDetail } from "@/lib/types";
@@ -17,9 +17,7 @@ export function canonicalize(value: unknown): string {
   return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalize(item)}`).join(",")}}`;
 }
 
-export function sha256Hex(input: string | Uint8Array): string {
-  return createHash("sha256").update(input).digest("hex");
-}
+export { sha256Hex };
 
 /** Huella del contenido del acta, independiente del archivo PDF. */
 export function contentFingerprint(input: {
@@ -96,7 +94,7 @@ export function documentTimestamp(input: {
  * cambia y el documento se vuelve a generar en lugar de reutilizar uno hecho
  * con el formato anterior. Súbala al modificar `minutes-document.tsx`.
  */
-export const PDF_GENERATOR_VERSION = "2026-11-26.1";
+export const PDF_GENERATOR_VERSION = "2026-11-27.1";
 
 export interface GenerationInput {
   minutesId: string;
@@ -136,6 +134,7 @@ export interface GenerationInput {
     signer_role: string;
     signed_at: string;
     signature_path: string;
+    verification_method?: string;
     acceptance_text_version: string;
   }[];
 }
@@ -184,6 +183,7 @@ export function generationFingerprint(input: GenerationInput): string {
           signer_role: s.signer_role,
           signed_at: s.signed_at,
           acceptance_text_version: s.acceptance_text_version,
+          verification_method: s.verification_method ?? "no_registrado",
           signature_sha256: sha256Hex(s.signature_path),
         }))
         .sort((a, b) => a.signer_role.localeCompare(b.signer_role)),

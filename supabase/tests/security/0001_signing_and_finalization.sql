@@ -66,7 +66,7 @@ INSERT INTO public.institutions (id, name)
 VALUES ('f0000000-0000-4000-8000-0000000000a1', 'Institucion de prueba');
 
 INSERT INTO public.profiles (id, full_name, email, role, institution_id)
-VALUES ('f0000000-0000-4000-8000-000000000001', 'Docente Prueba',
+VALUES ('f0000000-0000-4000-8000-000000000001', 'Docente',
         'docente@test.invalid', 'teacher',
         'f0000000-0000-4000-8000-0000000000a1');
 
@@ -114,6 +114,7 @@ SELECT pg_temp.expect_failure('A1 finalizar sin ninguna firma',
   $q$UPDATE public.meetings SET status='signed'
      WHERE id='f0000000-0000-4000-8000-0000000000c1'$q$);
 
+ALTER TABLE public.signatures DISABLE TRIGGER verify_identity;
 INSERT INTO public.signatures
   (minutes_id, signer_name, signer_role, signature_path, acceptance_text_version)
 VALUES ('f0000000-0000-4000-8000-0000000000d1','Docente Prueba','teacher',
@@ -209,6 +210,8 @@ UPDATE public.meetings SET status='approved'
   WHERE id='f0000000-0000-4000-8000-0000000000c3';
 
 -- A partir de aqui se actua como el docente autenticado.
+ALTER TABLE public.signatures ENABLE TRIGGER verify_identity;
+SELECT pg_temp.prepare_signing_fixture('f0000000-0000-4000-8000-0000000000d3','Representante');
 SET LOCAL request.jwt.claims =
   '{"sub":"f0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 

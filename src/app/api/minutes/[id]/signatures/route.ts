@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireApiSession, requireMeetingAccess } from "@/lib/session";
 import { ApiError, readJson, toErrorResponse } from "@/lib/api/http";
+import { verifySigners } from "@/lib/signing-code";
 import { ACCEPTANCE_TEXT_VERSION } from "@/lib/consent";
 
 export const runtime = "nodejs";
@@ -10,6 +11,8 @@ export const runtime = "nodejs";
 const MAX_SIGNATURE_BYTES = 400_000;
 
 const bodySchema = z.object({
+  password: z.string().max(1024).optional(),
+  code: z.string().regex(/^\d{6}$/).optional(),
   signatures: z
     .array(
       z.object({
@@ -46,7 +49,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!record) throw new ApiError(404, "El acta no existe.");
     await requireMeetingAccess(session, record.meeting_id);
 
-    const { signatures } = await readJson(request, bodySchema);
+    const { signatures, password, code } = await readJson(request, bodySchema);
 
     for (const signature of signatures) {
       if (signature.signature_data_url.length > MAX_SIGNATURE_BYTES) {
@@ -59,6 +62,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       throw new ApiError(400, "Se requiere la firma de la persona docente y la del representante.");
     }
 
+    if (session.mode === "supabase" && !(await session.repository.listSignatures(id)).length) {
+      if (!password || !code) throw new ApiError(403,"Se requiere la contraseña docente y el código del representante.");
+      await verifySigners(session,id,password,code);
+    }
     const result = await session.repository.signMinutes({
       minutes_id: id,
       acceptance_text_version: ACCEPTANCE_TEXT_VERSION,

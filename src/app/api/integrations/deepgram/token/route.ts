@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const { meetingId } = await readJson(request, bodySchema);
     const meeting = await requireMeetingAccess(session, meetingId);
 
-    checkRateLimit(`dg-token:${session.profile.id}`, 20, 60_000);
+    await checkRateLimit(session, "dg-token", 20);
 
     const env = getEnv();
     if (!isDeepgramConfigured(env)) {

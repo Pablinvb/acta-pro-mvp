@@ -41,7 +41,7 @@ function main() {
     console.log(`── ${file}`);
     const sql = readFileSync(join(TESTS_DIR, file), "utf8");
     try {
-      process.stdout.write(formatOutput(psql(container, sql)));
+      process.stdout.write(formatOutput(psql(container, readFileSync("tests/integration/signing-fixture.sql","utf8") + "\n" + sql)));
     } catch (error) {
       failed += 1;
       process.stdout.write(formatOutput(error.stdout));

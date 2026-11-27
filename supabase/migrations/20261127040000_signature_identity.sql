@@ -12,8 +12,9 @@
 --   signed_by             la sesion verificada que capturo la firma, de auth.uid()
 --   verification_method   como se verifico a quien firma
 --
--- `verification_method` admite tres valores y la diferencia importa:
+-- `verification_method` admite cuatro valores y la diferencia importa:
 --
+--   no_registrado             sin evidencia historica del metodo
 --   sesion_verificada        la firma del personal docente que convoca, atada
 --                            a su cuenta autenticada
 --   presencial_atestiguada   capturada en el dispositivo de esa sesion, con la
@@ -32,11 +33,9 @@
 ALTER TABLE public.signatures
     ADD COLUMN IF NOT EXISTS signed_by uuid REFERENCES public.profiles(id),
     ADD COLUMN IF NOT EXISTS verification_method text NOT NULL
-        DEFAULT 'presencial_atestiguada';
+        DEFAULT 'no_registrado';
 
--- Las firmas anteriores a esta migracion se quedan con el valor por defecto, y
--- es el correcto: se capturaron asi. No se reescribe el pasado para que encaje
--- con la regla nueva.
+-- signed_by queda NULL en las firmas anteriores.
 
 ALTER TABLE public.signatures
     DROP CONSTRAINT IF EXISTS signatures_verification_method_check;
@@ -44,7 +43,7 @@ ALTER TABLE public.signatures
 ALTER TABLE public.signatures
     ADD CONSTRAINT signatures_verification_method_check
     CHECK (verification_method IN
-        ('presencial_atestiguada', 'sesion_verificada', 'codigo_correo'));
+        ('no_registrado', 'presencial_atestiguada', 'sesion_verificada', 'codigo_correo'));
 
 CREATE OR REPLACE FUNCTION public.sign_minutes(p_minutes_id uuid, p_signatures jsonb, p_acceptance_text_version text)
  RETURNS jsonb

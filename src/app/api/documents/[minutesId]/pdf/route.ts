@@ -22,7 +22,7 @@ export async function POST(_request: Request, context: { params: Promise<{ minut
   try {
     const session = await requireApiSession();
     const { minutesId } = await context.params;
-    checkRateLimit(`pdf:${session.profile.id}`, 15, 60_000);
+    await checkRateLimit(session, "pdf", 15);
 
     const record = await session.repository.getMinutes(minutesId);
     if (!record) throw new ApiError(404, "El acta no existe.");

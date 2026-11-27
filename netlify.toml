@@ -31,6 +31,9 @@
   command = "npm run verify:ci && npm run build"
   publish = ".next"
 
+[functions]
+  node_bundler = "esbuild"
+
 [build.environment]
   # El desarrollo local usa Node 24. Aquí se fija 22 porque es la versión LTS
   # que Netlify tiene mejor rodada; el proyecto no depende de nada posterior.
@@ -51,10 +54,7 @@
   # silenciarlo añadiéndolo a esta lista.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,NEXT_PUBLIC_APP_URL,NEXT_PUBLIC_DEEPGRAM_MODEL,NEXT_PUBLIC_DEEPGRAM_LANGUAGE"
 
-# Cabeceras de seguridad. Se queda deliberadamente corto: **no** se añade
-# Content-Security-Policy, porque una CSP mal puesta rompe la aplicación en
-# silencio y hacerla bien exige nonces por petición, que es trabajo aparte y
-# está anotado como límite conocido en docs/SECURITY_HARDENING.md §9.
+# El proxy de Next.js añade la política de contenido con un nonce por petición.
 [[headers]]
   for = "/*"
   [headers.values]

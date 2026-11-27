@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -246,6 +247,7 @@ describe("superficie alcanzable por la API de datos", () => {
   });
 
   it("la docente puede firmar por la vía transaccional", async () => {
+    sqlScalar(readFileSync("tests/integration/signing-fixture.sql","utf8") + `\nSELECT pg_temp.prepare_signing_fixture('${ids.minutes}','Representante');`);
     const { data, error } = await user.rpc("sign_minutes", {
       p_minutes_id: ids.minutes,
       p_signatures: [

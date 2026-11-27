@@ -65,7 +65,7 @@ INSERT INTO public.institutions (id, name)
 VALUES ('e1000000-0000-4000-8000-0000000000a1', 'Institucion dos');
 
 INSERT INTO public.profiles (id, full_name, email, role, institution_id)
-VALUES ('e1000000-0000-4000-8000-000000000001', 'Docente Dos',
+VALUES ('e1000000-0000-4000-8000-000000000001', 'Docente',
         'docente2@test.invalid', 'teacher',
         'e1000000-0000-4000-8000-0000000000a1');
 
@@ -95,6 +95,7 @@ UPDATE public.meetings SET status='approved'
 -- ------------------------------------- E · la Data API no escribe firmas
 -- El rol `authenticated` es el que recibe una peticion desde el navegador.
 
+SELECT pg_temp.prepare_signing_fixture('e1000000-0000-4000-8000-0000000000d1','Representante');
 SET LOCAL request.jwt.claims =
   '{"sub":"e1000000-0000-4000-8000-000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;

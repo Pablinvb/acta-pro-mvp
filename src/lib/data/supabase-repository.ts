@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sha256Hex } from "@/lib/pdf/render";
+import { sha256Hex } from "@/lib/crypto/hash";
 
 import type { Minutes } from "@/lib/schemas/minutes";
 import type {
@@ -34,7 +34,7 @@ import type {
 } from "@/lib/data/repository";
 import { SigningError } from "@/lib/data/repository";
 import { deriveCommitments } from "@/lib/data/commitments";
-import { DOCUMENTS_BUCKET } from "@/lib/supabase/server";
+import { DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 
 /**
  * Nombre de la clave foránea por la que se incrusta el estudiante de una
@@ -145,6 +145,14 @@ export class SupabaseRepository implements Repository {
     private readonly db: SupabaseClient,
     private readonly admin: SupabaseClient,
   ) {}
+
+  async consumeRequest(actor: string, operation: string, limit: number) {
+    const { data, error } = await this.admin.rpc("consume_request", {
+      p_actor: actor, p_operation: operation, p_limit: limit,
+    });
+    if (error) throw new Error("No se pudo comprobar el límite de solicitudes.");
+    return data === true;
+  }
 
   async getInstitution(id: string) {
     const { data } = await this.db.from("institutions").select("*").eq("id", id).maybeSingle();
@@ -269,7 +277,7 @@ export class SupabaseRepository implements Repository {
       .from("meeting_participants")
       .select("*")
       .eq("meeting_id", meetingId)
-      .order("participant_type");
+      .order("participant_type").order("id");
     if (error) throw new Error(`No se pudieron listar participantes: ${error.message}`);
     return (data ?? []) as MeetingParticipant[];
   }

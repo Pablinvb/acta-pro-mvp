@@ -513,3 +513,13 @@ puede reintentar. Se verificó reintentando.
 | Textos de consentimiento sin revisión jurídica | Van marcados como borrador institucional | Antes de usarlo con personas reales |
 
 Detalle completo en [`PRIVACY_CHECKLIST.md`](PRIVACY_CHECKLIST.md).
+
+## Trabajos, audio y verificación de firmas
+
+La versión de la rama de endurecimiento utiliza dos funciones de Netlify. El navegador autenticado despacha `minutes-background` con una autorización para un único trabajo. La base reserva el trabajo antes de invocar a Anthropic. La huella combina los metadatos de redacción, los participantes y la transcripción numerada. Las solicitudes idénticas de una reunión comparten el trabajo. El resultado se guarda antes de crear el acta y el evento de auditoría en una transacción.
+
+`recover-jobs` revisa la cola cada diez minutos en despliegues publicados. Recupera reservas abandonadas, finaliza respuestas guardadas y elimina cargas caducadas. Ante una respuesta incierta de un proveedor de pago, el trabajo requiere revisión para evitar un segundo cargo. Los límites por cuenta y operación se aplican en Postgres. La recuperación de audio envía ficheros mayores de 4 MB directamente al bucket privado, hasta 50 MiB. Deepgram recibe una URL de lectura válida durante cinco minutos.
+
+Para las firmas nuevas se requiere una sesión del docente responsable, su contraseña y un código enviado al correo registrado del representante participante. El código caduca a los diez minutos, admite cinco intentos y se consume una vez. Configure `RESEND_API_KEY` y `EMAIL_FROM` en el entorno de Functions y verifique el dominio en Resend. El ensayo de integración sustituye el transporte de correo y comprueba la reautenticación real contra Supabase local.
+
+El ensayo de duración se ejecuta con `node --env-file=.env.local --import tsx scripts/benchmark-generation.ts`. Consume cuatro solicitudes al proveedor con transcripciones sintéticas repetibles.

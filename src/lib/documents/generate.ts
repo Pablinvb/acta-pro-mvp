@@ -134,6 +134,7 @@ export async function generateMinutesDocument(
       signer_role: signature.signer_role,
       signed_at: signature.signed_at,
       signature_path: signature.signature_path,
+      verification_method: signature.verification_method,
       acceptance_text_version: signature.acceptance_text_version,
     })),
   });

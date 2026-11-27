@@ -110,6 +110,7 @@ export function anonClient(): SupabaseClient {
 export async function signedInClient(email: string): Promise<{
   client: SupabaseClient;
   userId: string;
+  password: string;
 }> {
   const admin = adminClient();
   const password = randomBytes(24).toString("base64url");
@@ -133,7 +134,7 @@ export async function signedInClient(email: string): Promise<{
     throw new Error(`No se pudo iniciar sesión de prueba: ${signedIn.error.message}`);
   }
 
-  return { client, userId: created.data.user.id };
+  return { client, userId: created.data.user.id, password };
 }
 
 /** Identificadores propios de cada ejecución, para que no se pisen entre sí. */
@@ -229,18 +230,15 @@ export async function createApprovedMeeting(
  * operación de la aplicación.
  */
 export function cleanupFixture(ids: { institution: string; email: string }) {
-  const container = execFileSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" })
-    .split(/\r?\n/)
-    .map((n) => n.trim())
-    .find((n) => n.startsWith("supabase_db_"));
-
-  if (!container) throw new Error("No se encontró el contenedor local de Postgres.");
+  const container = localContainer();
 
   const sql = `
 BEGIN;
 ALTER TABLE public.signatures DISABLE TRIGGER protect_finalized_signatures_trigger;
 ALTER TABLE public.minutes DISABLE TRIGGER protect_finalized_minutes_trigger;
 DELETE FROM public.audit_logs WHERE institution_id = '${ids.institution}';
+DELETE FROM public.representatives WHERE id IN
+  (SELECT a.id FROM public.minutes a JOIN public.meetings m ON m.id=a.meeting_id WHERE m.institution_id='${ids.institution}');
 DELETE FROM public.meetings WHERE institution_id = '${ids.institution}';
 DELETE FROM public.students WHERE institution_id = '${ids.institution}';
 DELETE FROM public.profiles WHERE institution_id = '${ids.institution}';

@@ -1,3 +1,4 @@
+import { signatureMethodLabel } from "@/lib/signature-method";
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { Minutes } from "@/lib/schemas/minutes";
@@ -358,7 +359,7 @@ export function MinutesDocument({
                     <Text style={styles.itemTitle}>{signature.signer_name}</Text>
                     <Text style={styles.meta}>
                       {ROLE_LABEL[signature.signer_role] ?? "Participante"} ·{" "}
-                      {formatDateTime(signature.signed_at)}
+                      {formatDateTime(signature.signed_at)} · {signatureMethodLabel(signature.verification_method)}
                     </Text>
                     <Text style={styles.meta}>
                       Firma manuscrita digitalizada · texto {signature.acceptance_text_version}

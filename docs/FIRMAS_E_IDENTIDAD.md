@@ -1,6 +1,6 @@
 # Firmas e identidad de quien firma
 
-> **Estado: diseño, con una parte ya implementada y otra pendiente de decisión.**
+> **Actualización del 27 de noviembre de 2026.** La migración `20261127040000` registra las firmas históricas como `no_registrado`. El esquema posterior `20261127114954` exige reautenticación y un código para registrar nuevas firmas. Las secciones de diseño siguientes documentan la evolución del proyecto.
 > Lo que está en pie se señala como tal; lo propuesto, también. Este documento no
 > afirma validez jurídica de nada: eso es [`PROTECCION_DATOS.md`](PROTECCION_DATOS.md) §9.
 
@@ -69,14 +69,13 @@ siga rotulada en el propio PDF.
 Es lo que mejor relación tiene entre esfuerzo y resultado, y **no necesita
 ningún servicio nuevo**: el personal docente ya se autentica con Supabase Auth.
 
-Aplicado en la migración `20261127040000` (solo en local; la remota queda
-pendiente de autorización):
+Aplicado al proyecto remoto mediante la migración `20261127040000`:
 
 ```sql
 ALTER TABLE public.signatures
     ADD COLUMN signed_by uuid REFERENCES public.profiles(id),
     ADD COLUMN verification_method text NOT NULL
-        DEFAULT 'presencial_atestiguada';
+        DEFAULT 'no_registrado';
 ```
 
 `sign_minutes` los rellena desde `auth.uid()` —nunca desde algo que mande el
@@ -88,9 +87,7 @@ cualquier otro caso queda `presencial_atestiguada`. La auditoría de
 Con eso, la firma del rol `teacher` pasa de «alguien escribió este nombre» a
 «la sesión verificada de esta persona firmó esta versión del acta a esta hora».
 
-Las firmas anteriores a la migración se quedan con el valor por defecto, que es
-el correcto: se capturaron así. No se reescribe el pasado para que encaje con la
-regla nueva.
+Las firmas históricas conservan su trazo y su fecha. El método queda como `no_registrado` y el actor como `NULL` porque esos datos carecen de evidencia histórica.
 
 Comprobado en `supabase/tests/security/0007_signature_identity.sql`, 12 casos.
 Dos de ellos intentan modificar los valores **con los privilegios del dueño de
@@ -146,8 +143,8 @@ en el PDF y en la auditoría.
 
 ```sql
 ALTER TABLE public.signatures
-  ADD COLUMN verification_method text NOT NULL DEFAULT 'presencial_atestiguada'
-    CHECK (verification_method IN ('presencial_atestiguada', 'codigo_correo', 'sesion_verificada'));
+  ADD COLUMN verification_method text NOT NULL DEFAULT 'no_registrado'
+    CHECK (verification_method IN ('no_registrado', 'presencial_atestiguada', 'codigo_correo', 'sesion_verificada'));
 ```
 
 Que el acta diga cómo se verificó cada firma es, probablemente, más valioso

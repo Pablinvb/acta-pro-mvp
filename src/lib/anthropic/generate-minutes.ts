@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
-import { ApiError } from "@/lib/api/http";
+import { ApiError } from "@/lib/api/error";
 import { getEnv } from "@/lib/env";
 import { MINUTES_SYSTEM_PROMPT, buildMinutesUserMessage } from "@/lib/anthropic/prompt";
 import { MinutesSchema, findOrphanSourceIds, normalizeMinutes, type Minutes } from "@/lib/schemas/minutes";
@@ -11,6 +11,7 @@ import type { MeetingDetail, TranscriptSegment } from "@/lib/types";
 export interface GeneratedMinutes {
   minutes: Minutes;
   model: string;
+  usage?: {input_tokens: number; output_tokens: number};
 }
 
 function toApiError(error: unknown): ApiError {
@@ -58,6 +59,7 @@ export async function generateMinutesWithAnthropic(
   detail: MeetingDetail,
   segments: TranscriptSegment[],
   speakerNames: Record<string, string>,
+  timeoutMs?: number,
 ): Promise<GeneratedMinutes> {
   const env = getEnv();
   if (!env.ANTHROPIC_API_KEY) {
@@ -73,12 +75,13 @@ export async function generateMinutesWithAnthropic(
   // decide si vuelve a pedirlo.
   const client = new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY,
-    timeout: env.ANTHROPIC_TIMEOUT_MS,
+    timeout: timeoutMs ?? env.ANTHROPIC_TIMEOUT_MS,
     maxRetries: 0,
   });
   const model = env.ANTHROPIC_MODEL;
 
   let parsed: unknown;
+  let usage: GeneratedMinutes["usage"];
   let stopReason: string | null = null;
 
   try {
@@ -101,6 +104,7 @@ export async function generateMinutesWithAnthropic(
       output_config: { format: zodOutputFormat(MinutesSchema) },
     });
 
+    usage = message.usage;
     stopReason = message.stop_reason ?? null;
     parsed = message.parsed_output;
   } catch (error) {
@@ -136,5 +140,5 @@ export async function generateMinutesWithAnthropic(
     );
   }
 
-  return { minutes, model };
+  return { minutes, model, usage };
 }

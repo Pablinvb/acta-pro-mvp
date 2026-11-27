@@ -1,3 +1,4 @@
+import { signatureMethodLabel } from "@/lib/signature-method";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -92,7 +93,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
                   {signatures.map((signature) => (
                     <li key={signature.id}>
                       {signature.signer_name} · {formatDateTime(signature.signed_at)} · texto{" "}
-                      {signature.acceptance_text_version}
+                      {signature.acceptance_text_version} · {signatureMethodLabel(signature.verification_method)}
                     </li>
                   ))}
                 </ul>

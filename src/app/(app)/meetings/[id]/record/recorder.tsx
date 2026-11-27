@@ -1,5 +1,6 @@
 "use client";
 
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -246,14 +247,19 @@ export function Recorder({
     if (!options.demo && chunksRef.current.length > 0) {
       const audio = new Blob(chunksRef.current, { type: "audio/webm" });
       if (audio.size > MAX_AUDIO_UPLOAD_BYTES) {
-        throw new Error(
-          `El audio grabado ocupa ${Math.round(audio.size / 1_000_000)} MB y el servidor no acepta ` +
-            `envíos de más de ${Math.round(MAX_AUDIO_UPLOAD_BYTES / 1_000_000)} MB. ` +
-            "La transcripción en vivo no dejó texto, así que no hay nada que recuperar por esta vía. " +
-            "Puede cargar la transcripción de demostración y escribir el acta a mano.",
-        );
+        if (audio.size > 50 * 1024 * 1024) throw new Error("La grabación supera el límite de 50 MiB.");
+        const response = await fetch("/api/transcriptions/upload", {
+          method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({meetingId}),
+        });
+        const upload = await response.json();
+        if (!response.ok) throw new Error(upload.error ?? "No se pudo preparar la carga.");
+        const {error} = await createSupabaseBrowserClient().storage.from("acta-audio-recovery")
+          .uploadToSignedUrl(upload.path,upload.token,audio,{contentType:"audio/webm"});
+        if (error) throw new Error("No se pudo guardar la grabación privada.");
+        form.append("uploadId",upload.id);
+      } else {
+        form.append("audio", audio, "grabacion.webm");
       }
-      form.append("audio", audio, "grabacion.webm");
     }
 
     const response = await fetch("/api/transcriptions/recover", { method: "POST", body: form });

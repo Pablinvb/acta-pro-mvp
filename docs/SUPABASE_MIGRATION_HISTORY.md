@@ -174,3 +174,9 @@ Inventario remoto: 1 institución, 1 perfil, 2 estudiantes, 2 representantes,
 **Conclusión: las seis migraciones pendientes son aplicables sin pérdida de
 datos.** El procedimiento exacto está en
 [`RELEASE_READINESS.md`](RELEASE_READINESS.md) §6.
+
+## Validación del 27 de noviembre
+
+Se aplicaron al proyecto ACTA PRO las migraciones `20261127030000` y `20261127040000` después del ensayo de restauración. El historial remoto pasó de nueve a once versiones. Las dos firmas previas conservan el contenido original, `signed_by IS NULL` y `verification_method = 'no_registrado'`. El cotejo incluyó las filas de documentos, cuatro reuniones y 22 eventos de auditoría.
+
+La migración `20261127114954_processing_services` incorpora los trabajos persistentes, los contadores de solicitudes, las cargas temporales privadas y la verificación de nuevas firmas. Su activación exige coordinar la versión de la aplicación y el remitente de Resend, porque las escrituras nuevas de firmas pasan a exigir evidencia de identidad en la base.

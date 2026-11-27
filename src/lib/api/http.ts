@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { UnauthorizedError } from "@/lib/session";
+import { UnauthorizedError, type Session } from "@/lib/session";
 import { InvalidTransitionError } from "@/lib/meeting-state";
 import { NotFoundError, SigningError } from "@/lib/data/repository";
 import { DocumentIntegrityError } from "@/lib/documents/generate";
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+import { ApiError } from "./error";
+export { ApiError };
 
 export function jsonError(status: number, error: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ error, ...extra }, { status });
@@ -49,7 +42,16 @@ export function toErrorResponse(error: unknown) {
  */
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-export function checkRateLimit(key: string, limit: number, windowMs: number) {
+export async function checkRateLimit(session: Session, operation: string, limit: number) {
+  if (session.mode === "supabase") {
+    if (!session.repository.consumeRequest) throw new ApiError(503, "Control de solicitudes no disponible.");
+    if (!await session.repository.consumeRequest(session.profile.id, operation, limit)) {
+      throw new ApiError(429, "Demasiadas solicitudes. Vuelva a intentarlo en un minuto.");
+    }
+    return;
+  }
+  const key = `${operation}:${session.profile.id}`;
+  const windowMs = 60_000;
   const now = Date.now();
   const bucket = buckets.get(key);
 

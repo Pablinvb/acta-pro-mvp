@@ -147,6 +147,8 @@ export interface Signature {
  * que fingir que todas las firmas se verificaron igual.
  */
 export type SignatureVerificationMethod =
+  | "no_registrado"
+  | "docente_reautenticado"
   /** Capturada con la docente presente, sin verificar la identidad de quien firma. */
   | "presencial_atestiguada"
   /** La firma del personal docente, atada a su cuenta autenticada. */
