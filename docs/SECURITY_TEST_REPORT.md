@@ -52,7 +52,7 @@ exactamente el problema que tenían las pruebas smoke antes de esta fase.
 | `npm test` (Vitest, unitarias) | **154 / 154** en 18 archivos |
 | `npm run test:security` (SQL) | **132 / 132** en 5 archivos |
 | `npm run test:concurrency` (dos conexiones) | **18 / 18** |
-| `npm run test:integration` (Supabase local real) | **33 / 33** en 3 archivos |
+| `npm run test:integration` (Supabase local real) | **39 / 39** en 4 archivos |
 | `npm run verify:clean-install` (pila desechable) | **16 / 16** |
 | `scripts/verify-restore.mjs` (restauración sobre Supabase nuevo) | **9 / 9** |
 | `vitest -c vitest.remote.config.mts` (proyecto remoto real) | **16 / 16**, residuo cero |
@@ -227,6 +227,27 @@ La segunda superficie es más estrecha que la primera. `TRUNCATE` no tiene forma
 de expresarse en PostgREST, y eso **no lo hacía inofensivo**: la primera
 pregunta seguía respondiendo que sí, y `TRUNCATE` no pasa por RLS.
 
+## 6 ter. Las consultas con tablas incrustadas, y el fallo que llegó a producción
+
+[`tests/integration/repository-queries.test.ts`](../tests/integration/repository-queries.test.ts)
+— 6 casos. Se añadieron **después** de que el panel de la aplicación desplegada
+se cayera con un error de servidor, y por eso conviene dejar escrito el hueco que
+los hizo necesarios.
+
+La migración `20261125212938` añadió una segunda clave foránea de `meetings` a
+`students`. PostgREST, ante dos caminos posibles, responde `300` y rechaza la
+consulta: `listDocuments` y `listCommitments` dejaron de funcionar. **Ninguna
+prueba las ejecutaba contra una base de datos**, de modo que las 154 unitarias,
+las 132 SQL, las 33 de integración y las 16 remotas pasaron todas mientras la
+aplicación estaba rota.
+
+La lección no es «faltaba una prueba». Es que una consulta de PostgREST es una
+**cadena de texto** que nadie valida hasta que el servidor la recibe: ni el
+tipado ni un doble de prueba pueden detectar que el esquema dejó de admitirla. Un
+cambio de esquema puede romperla sin tocar una línea de código. Por eso estas
+consultas tienen que ejecutarse de verdad en alguna prueba, y ahora lo hacen las
+tres que existen, con datos presentes y comprobando que lo incrustado llega.
+
 ## 6 bis. Verificación contra el proyecto remoto
 
 [`tests/remote/production.test.ts`](../tests/remote/production.test.ts) — 16
@@ -283,6 +304,11 @@ Se declara explícitamente para no dar una sensación de cobertura que no existe
 - **No hay pruebas de la interfaz de firma manuscrita** más allá del recorrido
   demostrativo: el lienzo, el trazo y su conversión a PNG no tienen pruebas
   propias.
+- **Ninguna página se renderiza en una prueba contra una base real.** Lo que se
+  añadió tras el fallo del panel cubre las **consultas** del repositorio, no el
+  render de la página que las usa. Una página puede seguir cayéndose por algo que
+  ocurra fuera de esas consultas, y eso se vería antes en un recorrido por el
+  navegador que aquí.
 - **El límite de tasa no está probado bajo carga**, y es por proceso: con varias
   instancias el tope efectivo se multiplica.
 - **La firma correcta no se ha ejercitado nunca contra el proyecto remoto.** Las

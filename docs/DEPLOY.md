@@ -339,6 +339,83 @@ reunión semilla, confirme participantes, registre el consentimiento y grabe.
 
 ---
 
+## 5 bis. El error que apareció al desplegar, y por qué ninguna prueba lo vio
+
+Al abrir la aplicación desplegada, el panel respondía:
+
+> This page couldn't load. A server error occurred. Reload to try again.
+
+No era la protección de Netlify —esa devuelve **401**— ni el adaptador, ni las
+cookies, ni Node. Era un **500** de Next con un `digest`, y el registro de la
+función dio la causa literal:
+
+```
+Error: No se pudo leer el repositorio: Could not embed because more than one
+relationship was found for 'meetings' and 'students'
+    at Object.listDocuments                               digest 1673923183
+
+Error: No se pudo leer el seguimiento: Could not embed because more than one
+relationship was found for 'meetings' and 'students'
+    at Object.listCommitments                             digest 2034472494
+```
+
+### La causa
+
+La migración `20261125212938_document_and_meeting_integrity` añadió claves
+foráneas compuestas por institución. A partir de ella hay **dos** caminos de
+`meetings` a `students`:
+
+| Clave | Columnas |
+| --- | --- |
+| `meetings_student_id_fkey` | `(student_id) → students(id)` |
+| `meetings_student_institution_fk` | `(student_id, institution_id) → students(id, institution_id)` |
+
+La segunda es la que impide que una reunión apunte a un estudiante de otra
+institución: es deseable y se queda. Pero PostgREST no elige entre dos caminos:
+ante `students!inner(*)` responde **`300 Multiple Choices`**, y la página que
+hace esa consulta se cae.
+
+Conviene decirlo con precisión: **no fue un fallo de Netlify.** Reproducido
+contra la base local, el error es idéntico, con el mismo HTTP 300. El despliegue
+solo lo puso a la vista. Y el error se devuelve al analizar la consulta, antes de
+RLS, así que aparecía incluso sin sesión.
+
+El esquema tiene tres pares con esta ambigüedad —`meetings → students`,
+`meetings → profiles` y `documents → minutes`—, pero solo el primero lo
+atravesaba alguna consulta.
+
+### La corrección
+
+Nombrar la clave foránea en la consulta, que es lo que PostgREST pide para
+desambiguar, sin renunciar a la restricción:
+
+```
+*, meetings!inner(*, students!meetings_student_id_fkey!inner(*))
+```
+
+El nombre vive en una sola constante, `MEETING_STUDENT_FK`, con el motivo
+escrito al lado. Se usa la clave simple y no la compuesta porque es la relación
+que la consulta quiere decir; el resultado es el mismo, porque la compuesta
+garantiza la coincidencia de institución en toda fila.
+
+### Por qué ninguna prueba lo detectó
+
+Esta es la parte que importa más que el arreglo. **Ninguna prueba llamaba a
+`listDocuments` ni a `listCommitments` contra una base de datos.** Las 33 de
+integración cubrían almacenamiento, rutas de documentos y permisos de la API; y
+las 16 contra el proyecto remoto, las rutas de documentos. Estas dos consultas
+no las ejecutaba nada.
+
+Un esquema que cambia puede romper una consulta **sin que se toque una línea de
+código**, de modo que el tipado y las pruebas unitarias no pueden verlo: la
+consulta es una cadena que solo se valida cuando PostgREST la recibe. Por eso la
+corrección trae
+[`tests/integration/repository-queries.test.ts`](../tests/integration/repository-queries.test.ts):
+seis casos que ejecutan las tres consultas con incrustación que existen en el
+repositorio, con datos de verdad, y comprueban que el estudiante incrustado
+llega. Si una migración futura añade otro camino entre dos tablas incrustadas,
+falla ahí y no en producción.
+
 ## 6. Límites conocidos de esta versión en producción
 
 | Límite | Efecto | Cuándo importa |

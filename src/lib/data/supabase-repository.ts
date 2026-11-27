@@ -34,6 +34,28 @@ import { SigningError } from "@/lib/data/repository";
 import { deriveCommitments } from "@/lib/data/commitments";
 import { DOCUMENTS_BUCKET } from "@/lib/supabase/server";
 
+/**
+ * Nombre de la clave foránea por la que se incrusta el estudiante de una
+ * reunión.
+ *
+ * Hay que nombrarla, y conviene saber por qué. Desde la migración
+ * `20261125212938` existen **dos** claves foráneas de `meetings` a `students`:
+ * la de siempre, `meetings_student_id_fkey` sobre `student_id`, y la compuesta
+ * `meetings_student_institution_fk` sobre `(student_id, institution_id)`, que es
+ * la que impide que una reunión apunte a un estudiante de otra institución.
+ *
+ * PostgREST no elige entre dos caminos: responde `300 Multiple Choices` con
+ * «Could not embed because more than one relationship was found», y la página
+ * que hiciera esa consulta se cae con un error de servidor. Nombrar la clave
+ * resuelve la ambigüedad sin renunciar a la restricción.
+ *
+ * Se usa la simple y no la compuesta porque es la relación que la consulta
+ * quiere decir -«el estudiante de esta reunión»- y porque no depende de una
+ * restricción añadida para otro propósito. El resultado es el mismo: la clave
+ * compuesta garantiza que ambas coincidan en institución para toda fila.
+ */
+const MEETING_STUDENT_FK = "meetings_student_id_fkey";
+
 /** Fila de `minutes` tal como está en Postgres. */
 interface MinutesRow {
   id: string;
@@ -463,7 +485,7 @@ export class SupabaseRepository implements Repository {
   async listDocuments(institutionId: string, filters?: { studentId?: string }) {
     let query = this.db
       .from("documents")
-      .select("*, meetings!inner(*, students!inner(*))")
+      .select(`*, meetings!inner(*, students!${MEETING_STUDENT_FK}!inner(*))`)
       .eq("meetings.institution_id", institutionId)
       .order("created_at", { ascending: false });
     if (filters?.studentId) query = query.eq("meetings.student_id", filters.studentId);
@@ -528,7 +550,7 @@ export class SupabaseRepository implements Repository {
   async listCommitments(institutionId: string, filters?: { studentId?: string }) {
     let query = this.db
       .from("commitment_tracking")
-      .select("*, meetings!inner(*, students!inner(*))")
+      .select(`*, meetings!inner(*, students!${MEETING_STUDENT_FK}!inner(*))`)
       .eq("institution_id", institutionId)
       .order("due_date", { ascending: true, nullsFirst: false });
     if (filters?.studentId) query = query.eq("meetings.student_id", filters.studentId);
