@@ -520,6 +520,8 @@ La versión de la rama de endurecimiento utiliza dos funciones de Netlify. El na
 
 `recover-jobs` revisa la cola cada diez minutos en despliegues publicados. Recupera reservas abandonadas, finaliza respuestas guardadas y elimina cargas caducadas. Ante una respuesta incierta de un proveedor de pago, el trabajo requiere revisión para evitar un segundo cargo. Los límites por cuenta y operación se aplican en Postgres. La recuperación de audio envía ficheros mayores de 4 MB directamente al bucket privado, hasta 50 MiB. Deepgram recibe una URL de lectura válida durante cinco minutos.
 
+Durante el despliegue, la versión publicada conserva `sign_minutes`. El borrador utiliza `sign_minutes_verified`, que exige prueba en la base incluso con acceso directo a la API de datos. Al promover, ejecute `supabase/fixes/0002_activate_verified_signing.sql` para retirar el acceso a la operación anterior. La nueva entrada mantiene el acceso interno al núcleo transaccional.
+
 Para las firmas nuevas se requiere una sesión del docente responsable, su contraseña y un código enviado al correo registrado del representante participante. El código caduca a los diez minutos, admite cinco intentos y se consume una vez. Configure `RESEND_API_KEY` y `EMAIL_FROM` en el entorno de Functions y verifique el dominio en Resend. El ensayo de integración sustituye el transporte de correo y comprueba la reautenticación real contra Supabase local.
 
 El ensayo de duración se ejecuta con `node --env-file=.env.local --import tsx scripts/benchmark-generation.ts`. Consume cuatro solicitudes al proveedor con transcripciones sintéticas repetibles.

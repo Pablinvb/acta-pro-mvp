@@ -50,7 +50,7 @@ COMMIT;
 `;
 
 const signCall = (n) =>
-  `SELECT public.sign_minutes('${minutes(n)}', $$${SIGNATURES}$$::jsonb, 'v1');`;
+  `SELECT public.sign_minutes_verified('${minutes(n)}', $$${SIGNATURES}$$::jsonb, 'v1');`;
 
 // --------------------------------------------------------------- escenario
 

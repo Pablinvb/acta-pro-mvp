@@ -120,7 +120,7 @@ SELECT pg_temp.expect_success('E4 SELECT sobre firmas propias sigue permitido',
 -- ------------------------------------- F · idempotencia honesta del RPC
 
 SELECT pg_temp.expect_success('F1 sign_minutes firma por la via autorizada',
-  $q$SELECT public.sign_minutes('e1000000-0000-4000-8000-0000000000d1',
+  $q$SELECT public.sign_minutes_verified('e1000000-0000-4000-8000-0000000000d1',
       '[{"signer_name":"Docente","signer_role":"teacher","signature_path":"AAA"},
         {"signer_name":"Representante","signer_role":"representative","signature_path":"BBB"}]'::jsonb,
       'v1')$q$);
@@ -130,19 +130,19 @@ SELECT pg_temp.expect('F2 la reunion quedo firmada',
    WHERE id='e1000000-0000-4000-8000-0000000000c1'));
 
 SELECT pg_temp.expect('F3 repetir identico es idempotente',
-  ((SELECT public.sign_minutes('e1000000-0000-4000-8000-0000000000d1',
+  ((SELECT public.sign_minutes_verified('e1000000-0000-4000-8000-0000000000d1',
       '[{"signer_name":"Docente","signer_role":"teacher","signature_path":"AAA"},
         {"signer_name":"Representante","signer_role":"representative","signature_path":"BBB"}]'::jsonb,
       'v1'))->>'already_signed')::boolean);
 
 SELECT pg_temp.expect('F4 el orden no afecta a la idempotencia',
-  ((SELECT public.sign_minutes('e1000000-0000-4000-8000-0000000000d1',
+  ((SELECT public.sign_minutes_verified('e1000000-0000-4000-8000-0000000000d1',
       '[{"signer_name":"Representante","signer_role":"representative","signature_path":"BBB"},
         {"signer_name":"Docente","signer_role":"teacher","signature_path":"AAA"}]'::jsonb,
       'v1'))->>'already_signed')::boolean);
 
 SELECT pg_temp.expect_failure('F5 repetir con contenido distinto se rechaza',
-  $q$SELECT public.sign_minutes('e1000000-0000-4000-8000-0000000000d1',
+  $q$SELECT public.sign_minutes_verified('e1000000-0000-4000-8000-0000000000d1',
       '[{"signer_name":"Docente","signer_role":"teacher","signature_path":"AAA"},
         {"signer_name":"Otro","signer_role":"representative","signature_path":"ZZZ"}]'::jsonb,
       'v1')$q$);

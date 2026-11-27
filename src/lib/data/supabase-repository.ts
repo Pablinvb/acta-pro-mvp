@@ -455,7 +455,7 @@ export class SupabaseRepository implements Repository {
   async signMinutes(input: SignMinutesInput): Promise<SignMinutesResult> {
     // Toda la validación vive en la función de Postgres, que además bloquea la
     // reunión. Replicarla aquí abriría la puerta a que ambas se desincronicen.
-    const { data, error } = await this.db.rpc("sign_minutes", {
+    const { data, error } = await this.db.rpc("sign_minutes_verified", {
       p_minutes_id: input.minutes_id,
       p_signatures: input.signatures,
       p_acceptance_text_version: input.acceptance_text_version,

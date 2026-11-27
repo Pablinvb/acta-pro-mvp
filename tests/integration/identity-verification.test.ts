@@ -86,6 +86,15 @@ afterAll(() => {
 
 it("exige contraseña y OTP del acta, conserva la sesión y registra ambos métodos", async () => {
   const original = (await client.auth.getSession()).data.session!.access_token;
+  const premature = await client.rpc("sign_minutes_verified", {
+    p_minutes_id: ids.minutes,
+    p_signatures: [
+      {signer_name:"Docente",signer_role:"teacher",signature_path:"AAA"},
+      {signer_name:"Representante",signer_role:"representative",signature_path:"BBB"},
+    ],
+    p_acceptance_text_version: "v1",
+  });
+  expect(premature.error?.code).toBe("42501");
   await issueCode(session, ids.minutes);
   await expect(
     verifySigners(session, ids.minutes, "incorrecta", code),

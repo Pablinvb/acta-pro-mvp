@@ -98,13 +98,17 @@ UPDATE public.meetings SET status='approved'
 
 -- --------------------------------- W · lo que queda registrado al firmar
 
+-- Simula la promoción dentro de esta transacción de prueba.
+REVOKE EXECUTE ON FUNCTION public.sign_minutes(uuid,jsonb,text) FROM PUBLIC,anon,authenticated;
+SELECT pg_temp.expect('La operación anterior queda cerrada al promover',
+  NOT has_function_privilege('authenticated','public.sign_minutes(uuid,jsonb,text)','EXECUTE'));
 SELECT pg_temp.prepare_signing_fixture('a7000000-0000-4000-8000-0000000000d1','Madre');
 SET LOCAL request.jwt.claims =
   '{"sub":"a7000000-0000-4000-8000-000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 SELECT pg_temp.expect_success('W1 la firma por la via autorizada funciona',
-  $q$SELECT public.sign_minutes('a7000000-0000-4000-8000-0000000000d1',
+  $q$SELECT public.sign_minutes_verified('a7000000-0000-4000-8000-0000000000d1',
       '[{"signer_name":"Docente Firma","signer_role":"teacher","signature_path":"AAA"},
         {"signer_name":"Madre","signer_role":"representative","signature_path":"BBB"}]'::jsonb,
       'aceptacion-v1')$q$);

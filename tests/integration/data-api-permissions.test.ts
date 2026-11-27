@@ -188,7 +188,7 @@ describe("superficie alcanzable por la API de datos", () => {
   });
 
   it("una sesión anónima no puede invocar la firma", async () => {
-    const { error } = await anon.rpc("sign_minutes", {
+    const { error } = await anon.rpc("sign_minutes_verified", {
       p_minutes_id: ids.minutes,
       p_signatures: [
         { signer_role: "teacher", signer_name: "X", signature_path: "data:image/png;base64,AA" },
@@ -248,7 +248,7 @@ describe("superficie alcanzable por la API de datos", () => {
 
   it("la docente puede firmar por la vía transaccional", async () => {
     sqlScalar(readFileSync("tests/integration/signing-fixture.sql","utf8") + `\nSELECT pg_temp.prepare_signing_fixture('${ids.minutes}','Representante');`);
-    const { data, error } = await user.rpc("sign_minutes", {
+    const { data, error } = await user.rpc("sign_minutes_verified", {
       p_minutes_id: ids.minutes,
       p_signatures: [
         {
@@ -273,7 +273,7 @@ describe("superficie alcanzable por la API de datos", () => {
   });
 
   it("no puede firmar el acta de otra institución", async () => {
-    const { error } = await user.rpc("sign_minutes", {
+    const { error } = await user.rpc("sign_minutes_verified", {
       p_minutes_id: otherIds.minutes,
       p_signatures: [
         { signer_role: "teacher", signer_name: "X", signature_path: "data:image/png;base64,AA" },

@@ -114,7 +114,6 @@ SELECT pg_temp.expect_failure('A1 finalizar sin ninguna firma',
   $q$UPDATE public.meetings SET status='signed'
      WHERE id='f0000000-0000-4000-8000-0000000000c1'$q$);
 
-ALTER TABLE public.signatures DISABLE TRIGGER verify_identity;
 INSERT INTO public.signatures
   (minutes_id, signer_name, signer_role, signature_path, acceptance_text_version)
 VALUES ('f0000000-0000-4000-8000-0000000000d1','Docente Prueba','teacher',
@@ -210,13 +209,12 @@ UPDATE public.meetings SET status='approved'
   WHERE id='f0000000-0000-4000-8000-0000000000c3';
 
 -- A partir de aqui se actua como el docente autenticado.
-ALTER TABLE public.signatures ENABLE TRIGGER verify_identity;
 SELECT pg_temp.prepare_signing_fixture('f0000000-0000-4000-8000-0000000000d3','Representante');
 SET LOCAL request.jwt.claims =
   '{"sub":"f0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 
 SELECT pg_temp.expect_failure('D1 sign_minutes rechaza una sola firma',
-  $q$SELECT public.sign_minutes('f0000000-0000-4000-8000-0000000000d3',
+  $q$SELECT public.sign_minutes_verified('f0000000-0000-4000-8000-0000000000d3',
       '[{"signer_name":"Docente","signer_role":"teacher","signature_path":"x"}]'::jsonb,
       'v1')$q$);
 
@@ -229,7 +227,7 @@ SELECT pg_temp.expect('D3 el rechazo no movio el estado',
    WHERE id='f0000000-0000-4000-8000-0000000000c3'));
 
 SELECT pg_temp.expect_success('D4 sign_minutes firma y finaliza',
-  $q$SELECT public.sign_minutes('f0000000-0000-4000-8000-0000000000d3',
+  $q$SELECT public.sign_minutes_verified('f0000000-0000-4000-8000-0000000000d3',
       '[{"signer_name":"Docente","signer_role":"teacher","signature_path":"x"},
         {"signer_name":"Representante","signer_role":"representative","signature_path":"y"}]'::jsonb,
       'v1')$q$);
@@ -248,7 +246,7 @@ SELECT pg_temp.expect('D7 la firma quedo auditada',
      AND action='minutes.signed'));
 
 SELECT pg_temp.expect('D8 repetir la llamada es idempotente',
-  ((SELECT public.sign_minutes('f0000000-0000-4000-8000-0000000000d3',
+  ((SELECT public.sign_minutes_verified('f0000000-0000-4000-8000-0000000000d3',
       '[{"signer_name":"Docente","signer_role":"teacher","signature_path":"x"},
         {"signer_name":"Representante","signer_role":"representative","signature_path":"y"}]'::jsonb,
       'v1'))->>'already_signed')::boolean);

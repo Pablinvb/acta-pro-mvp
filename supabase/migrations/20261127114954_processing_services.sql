@@ -137,7 +137,14 @@ BEGIN
     JOIN public.meeting_participants mp ON mp.meeting_id=m.id AND mp.participant_type='representative' AND mp.participant_ref_id=r.id
     WHERE c.minutes_id=NEW.minutes_id AND c.actor_id=auth.uid() AND c.verified AND c.expires_at>now()
     FOR UPDATE OF c;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Se requiere verificar a ambos firmantes.' USING ERRCODE='42501'; END IF;
+  IF NOT FOUND THEN
+    -- Solo la operación anterior al despliegue admite firma presencial.
+    -- La entrada nueva comprueba y bloquea la evidencia antes de llamar al núcleo.
+    IF current_setting('acta.require_verified_signing', true) = 'on' THEN
+      RAISE EXCEPTION 'Se requiere verificar a ambos firmantes.' USING ERRCODE='42501';
+    END IF;
+    RETURN NEW;
+  END IF;
   IF NEW.signer_role='teacher' THEN
     NEW.signer_name=teacher_name;
     NEW.verification_method='docente_reautenticado';
@@ -148,6 +155,17 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+-- El cliente no elige el método ni controla la exigencia de la entrada nueva.
+CREATE FUNCTION public.sign_minutes_verified(p_minutes_id uuid,p_signatures jsonb,p_acceptance_text_version text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+BEGIN
+  PERFORM set_config('acta.require_verified_signing','on',true);
+  RETURN public.sign_minutes(p_minutes_id,p_signatures,p_acceptance_text_version);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.sign_minutes_verified(uuid,jsonb,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.sign_minutes_verified(uuid,jsonb,text) TO authenticated;
+
 CREATE TRIGGER verify_identity BEFORE INSERT ON public.signatures FOR EACH ROW EXECUTE FUNCTION acta_private.require_signing_proof();
 CREATE FUNCTION acta_private.clear_signing_proof() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 BEGIN
