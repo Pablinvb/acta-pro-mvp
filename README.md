@@ -23,7 +23,7 @@ flowchart TD
     class D revision
 ```
 
-**La IA propone. El docente revisa y decide.** El micrófono se habilita cuando todos los participantes han dado su consentimiento. El tablero muestra quién asumió cada compromiso y qué fecha se acordó. Allí, el docente registra los avances.
+**La IA propone. El docente revisa y decide.** El micrófono se habilita cuando todos los participantes han dado su consentimiento. El tablero muestra cada compromiso, la persona responsable y la fecha acordada. El docente actualiza su estado a medida que recibe información sobre los avances.
 
 | Usuario | Qué aporta Acta Pro |
 | --- | --- |
@@ -81,7 +81,7 @@ flowchart TD
 
 ## Impacto y modelo de negocio
 
-Acta Pro propone una suscripción institucional mensual o anual según el número de docentes y el volumen de actas. El modelo plantea **el siguiente escenario hipotético, pendiente de validación mediante un piloto**.
+Acta Pro propone una suscripción institucional mensual o anual según el número de docentes y el volumen de actas. El modelo estima que el tiempo de documentación podría pasar de **30 a 5 minutos por reunión**. Esta proyección se evaluará en un piloto.
 
 | Indicador | Proyección |
 | --- | ---: |
