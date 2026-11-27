@@ -1,59 +1,100 @@
 # ACTA PRO
 
-Convierte una reunión escolar grabada **con consentimiento** en un borrador de acta objetivo, editable, firmado y trazable.
+**Menos trámites. Más educación.**
 
-> ACTA PRO produce **evidencia institucional trazable**. No otorga validez legal automática ni sustituye una firma electrónica cualificada. La validez del documento depende de las políticas de la institución y de la normativa aplicable.
+Acta Pro ayuda al docente a documentar las reuniones con familias y autoridades. A partir de una conversación grabada con consentimiento, prepara un borrador de acta que vincula cada acuerdo con el fragmento que lo respalda. El docente revisa y aprueba el documento antes de recoger las firmas. Después puede consultar quién asumió cada compromiso y actualizar su avance.
 
-Español de Ecuador · zona horaria `America/Guayaquil`.
+[Cómo funciona](#cómo-funciona) · [Probar el MVP](#probar-el-mvp) · [Arquitectura](#arquitectura-del-mvp) · [Impacto](#impacto-y-modelo-de-negocio)
 
----
+## Cómo funciona
 
-## Qué hace
+```mermaid
+flowchart TD
+    A["1 · Registrar la reunión y el consentimiento"] --> B["2 · Transcribir y confirmar quién habló"]
+    B --> C["3 · Generar el borrador con IA"]
+    C --> D{"4 · ¿El docente aprueba el acta?"}
+    D -->|Requiere ajustes| E["Editar y contrastar con la transcripción"]
+    E --> D
+    D -->|Aprobada| F["5 · Firmar y archivar el PDF"]
+    F --> G["6 · Dar seguimiento a los compromisos"]
+    classDef etapa fill:#102948,color:#FFFFFF,stroke:#579FFF
+    classDef revision fill:#FFE3A5,color:#312305,stroke:#A06300
+    class A,B,C,E,F,G etapa
+    class D revision
+```
 
-1. La docente abre una reunión con la ficha del estudiante y su representante.
-2. Confirma quiénes están presentes.
-3. Lee el aviso de tratamiento de datos y **registra el consentimiento de todas las personas**. Sin consentimiento, el micrófono no se habilita.
-4. Graba desde el navegador con cronómetro, pausa y finalización. La transcripción llega en vivo, separada por hablante.
-5. Asigna cada hablante detectado (`speaker_0`, `speaker_1`…) a una persona real.
-6. La IA propone un borrador con temas, hechos, acuerdos, compromisos y seguimiento, cada uno enlazado a los segmentos de la transcripción que lo respaldan.
-7. La docente revisa, corrige, acepta o rechaza sugerencias de lenguaje objetivo y **aprueba**. Hasta ese momento el acta es un `BORRADOR`.
-8. Docente y representante firman en el mismo dispositivo.
-9. El sistema genera el PDF, calcula su huella SHA-256, lo archiva en el repositorio y registra la auditoría.
-10. El acta se envía al representante por correo, o se muestra una vista previa rotulada como simulación.
-11. Los acuerdos y compromisos aprobados pasan al **tablero de seguimiento**, con su responsable y su fecha tal como constan en el acta. La docente marca su avance; el sistema no da nada por cumplido.
+**La IA propone. El docente revisa y decide.** El micrófono se habilita cuando todos los participantes han dado su consentimiento. El tablero conserva el responsable y la fecha que constan en el acta. El docente registra el avance de cada compromiso.
 
-## Lo que el MVP **no** hace
-
-| Área | Estado |
+| Usuario | Qué aporta Acta Pro |
 | --- | --- |
-| Runachay | **No disponible.** No hay API oficial. El listado de estudiantes proviene de un proveedor simulado con datos ficticios. |
-| Google Calendar | Opcional. Importa solo eventos marcados explícitamente para ACTA PRO. |
-| Firma electrónica cualificada | Fuera de alcance. Lo que se recoge es una **firma manuscrita digitalizada**. |
-| Identificación biométrica de voz | No existe. El sistema separa hablantes; la persona lo confirma. |
-| Portal remoto del representante | Fuera de alcance. Ambas firmas se recogen en el mismo dispositivo. |
-| Retención de audio | El audio **nunca** se guarda en el servidor: se transcribe y se descarta. |
+| Docente | Puede comprobar qué se dijo al revisar el borrador y retomar los acuerdos en la siguiente reunión. |
+| Institución educativa | Reúne las actas en un repositorio con historial por estudiante y registro de acciones. |
+| Representante | Puede consultar el documento firmado y los compromisos acordados. |
+| Estudiante | Recibe acompañamiento a partir de acuerdos que la institución y la familia pueden retomar. |
 
----
-
-## Arranque rápido (sin ninguna clave)
+## Probar el MVP
 
 ```bash
+git clone https://github.com/Pablinvb/acta-pro-mvp.git
+cd acta-pro-mvp
 npm install
 npm run dev
 ```
 
-Abra <http://localhost:3000> e ingrese con las credenciales de demostración que aparecen en la propia pantalla:
+Abra <http://localhost:3000> y use las credenciales de demostración que aparecen en pantalla. El modo demo funciona sin claves de API. **Cargar transcripción de demostración** permite probar la revisión, las firmas, el PDF y el seguimiento con datos ficticios. La interfaz identifica las simulaciones. Sin Supabase, reiniciar el servidor restablece los datos iniciales.
 
-- Correo: `ana.perez@demo.actapro.ec`
-- Contraseña: `demo1234`
+## Arquitectura del MVP
 
-Con `DEMO_MODE=true` (valor por defecto) la aplicación arranca sin Supabase, Deepgram, Anthropic ni Resend. Cada simulación aparece **rotulada en la interfaz**: banda superior de «Modo demostración», insignias por integración y avisos en el propio borrador.
+```mermaid
+flowchart TD
+    N["Navegador del docente"] -->|"Reuniones y revisión"| A["Acta Pro · Next.js"]
+    N <-->|"Audio y transcripción"| D["Deepgram"]
+    A -->|"Token temporal"| N
+    A -->|"Generación del borrador"| I["Anthropic"]
+    A -->|"Sesiones, datos y PDF"| S["Supabase"]
+    A -->|"Correo opcional"| R["Resend"]
+    G["Google Calendar"] -->|"Reuniones seleccionadas"| A
+    classDef app fill:#164889,color:#FFFFFF,stroke:#71B1FF
+    classDef servicio fill:#102948,color:#FFFFFF,stroke:#579FFF
+    class A app
+    class N,D,I,S,R,G servicio
+```
 
-**Limitación conocida del modo demo:** sin Supabase los datos viven en la memoria del servidor. Reiniciar `next dev` devuelve el escenario a los datos semilla.
+| Servicio | Función en el modo real |
+| --- | --- |
+| Deepgram | Transcribe la conversación y separa las intervenciones por hablante. El docente confirma la identidad de cada persona. |
+| Anthropic | Organiza los temas, hechos y acuerdos en un borrador con referencias a la transcripción. |
+| Supabase | Gestiona la autenticación, la base de datos y el almacenamiento privado de los PDF. |
+| Resend y Google Calendar | Integraciones opcionales para enviar el acta por correo e importar reuniones seleccionadas, respectivamente. |
 
----
+## Privacidad y trazabilidad
 
-## Configuración con APIs reales
+| Control | Alcance |
+| --- | --- |
+| Audio | El sistema lo procesa para transcribirlo y lo descarta. |
+| Revisión | La transcripción original se conserva. Las correcciones se registran como versiones del acta. |
+| Firmas | El docente y el representante firman en el mismo dispositivo. Se recogen firmas manuscritas digitalizadas. La verificación de identidad de los firmantes está pendiente. |
+| Integridad | Una huella SHA-256 permite comprobar si el PDF cambió después de archivarse. La descarga requiere autenticación y comprobación de la institución. |
+| Datos escolares | El proveedor simulado de estudiantes utiliza datos ficticios. La integración con Runachay está fuera del alcance actual. |
+
+## Impacto y modelo de negocio
+
+Acta Pro propone una suscripción institucional mensual o anual según el número de docentes y el volumen de actas. El modelo plantea **el siguiente escenario hipotético, pendiente de validación mediante un piloto**.
+
+| Indicador | Proyección |
+| --- | ---: |
+| Tiempo de documentación por reunión | De 30 a 5 minutos |
+| Reducción del tiempo de documentación | 83,3 % |
+| Capacidad recuperada con 50 docentes y 4 reuniones mensuales por docente | 83,3 horas al mes |
+
+## Documentación técnica
+
+[Arquitectura](docs/ARCHITECTURE.md) · [Privacidad](docs/PRIVACY_CHECKLIST.md) · [Despliegue](docs/DEPLOY.md)
+
+Idioma: español de Ecuador · Zona horaria: `America/Guayaquil`.
+
+<details>
+<summary>Configuración con APIs reales</summary>
 
 1. Copie el archivo de ejemplo:
 
@@ -95,9 +136,10 @@ Registre en Google Cloud exactamente estos URI de redirección:
 
 Ponga `DEMO_MODE=false` **solo** cuando las tres integraciones indispensables estén configuradas. Si falta alguna, la aplicación dirige a `/settings/integrations` en lugar de continuar con simulaciones silenciosas.
 
----
+</details>
 
-## Base de datos
+<details>
+<summary>Base de datos</summary>
 
 Con el proyecto de Supabase creado, ejecute en el editor SQL, en este orden:
 
@@ -115,9 +157,10 @@ supabase db push
 supabase db execute --file supabase/seed.sql
 ```
 
----
+</details>
 
-## Comandos
+<details>
+<summary>Comandos</summary>
 
 | Comando | Qué hace |
 | --- | --- |
@@ -137,9 +180,10 @@ La prueba end-to-end levanta su propio servidor en el puerto `3100` y necesita e
 npx playwright install chromium
 ```
 
----
+</details>
 
-## Estructura
+<details>
+<summary>Estructura</summary>
 
 ```
 src/
@@ -164,11 +208,10 @@ tests/                      unit, mocks, smoke y end-to-end
 docs/                       arquitectura, privacidad y guion de demostración
 ```
 
-Más detalle en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/PRIVACY_CHECKLIST.md`](docs/PRIVACY_CHECKLIST.md) y [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+</details>
 
----
-
-## Identidad visual
+<details>
+<summary>Identidad visual</summary>
 
 Tema oscuro institucional: azul marino profundo como fondo, azul eléctrico `#1F6FEB` como único acento de marca, verde reservado a lo verificado, ámbar a lo que exige revisión humana y rojo a la grabación en curso. Tipografía Inter. Los tokens viven en `src/app/globals.css` bajo `@theme`; los componentes no llevan colores literales.
 
@@ -182,9 +225,10 @@ Elementos propios de la identidad implementados como componentes:
 
 Todas las animaciones se desactivan con `prefers-reduced-motion`.
 
----
+</details>
 
-## Diagnóstico cuando algo no funciona
+<details>
+<summary>Diagnóstico cuando algo no funciona</summary>
 
 ```bash
 npm run check:env   # presencia y formato, sin imprimir valores
@@ -206,9 +250,10 @@ Tres fallos habituales y cómo se comporta la aplicación ante cada uno:
 
 El botón **Cargar transcripción de demostración** funciona siempre que `DEMO_MODE=true`, incluso con Deepgram configurado: es el plan B de la demostración y su respuesta viene marcada como simulada.
 
----
+</details>
 
-## Seguridad
+<details>
+<summary>Seguridad</summary>
 
 - Ninguna clave de proveedor llega al navegador. Deepgram se usa desde el cliente con **tokens temporales** emitidos por el servidor.
 - El bucket de documentos es privado; la descarga pasa por una ruta autenticada que comprueba la institución.
@@ -217,7 +262,10 @@ El botón **Cargar transcripción de demostración** funciona siempre que `DEMO_
 - Los registros de consola no contienen transcripciones, firmas, correos ni secretos: solo recuentos e identificadores.
 - La transcripción original es inmutable: las correcciones viven como versiones del acta.
 
-## Despliegue
+</details>
+
+<details>
+<summary>Despliegue</summary>
 
 **GitHub Pages no sirve para este proyecto.** Publica solo archivos estáticos y la aplicación necesita 17 rutas de servidor; llevarlas al navegador obligaría a exponer las claves en un repositorio público.
 
@@ -226,3 +274,6 @@ Guía completa en [`docs/DEPLOY.md`](docs/DEPLOY.md): Vercel para la aplicación
 - Aplicación en Vercel; datos y archivos en Supabase.
 - Configure las mismas variables de entorno en el proyecto de Vercel y actualice `NEXT_PUBLIC_APP_URL` y `GOOGLE_REDIRECT_URI` al dominio de producción.
 - El límite de tasa es en memoria por proceso: para varias instancias sustitúyalo por un almacén compartido antes de un uso institucional real.
+
+</details>
+
