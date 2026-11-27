@@ -1,0 +1,120 @@
+name: Verificación
+
+# Se ejecuta en cada subida a la rama de trabajo y en cada Pull Request hacia
+# `main`. El objetivo no es decorar el repositorio con un distintivo verde: es
+# que nadie tenga que acordarse de ejecutar las pruebas antes de publicar.
+on:
+  push:
+    branches: [security/hardening, main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Si alguien sube dos veces seguidas, la primera ejecución se cancela: gasta
+# minutos en un resultado que ya no interesa.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rapidas:
+    name: Tipos, estilo, unitarias y compilación
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          # La misma versión que fija netlify.toml para la construcción.
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # Se construye en modo demostración y sin ninguna clave: así se comprueba
+      # que la compilación no depende de secretos, que es justo lo que no debe
+      # ocurrir. Las variables `NEXT_PUBLIC_*` se incrustan en el código, de
+      # modo que una construcción que necesitara claves reales las publicaría.
+      - run: npm run build
+        env:
+          DEMO_MODE: "true"
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  base-de-datos:
+    name: SQL, concurrencia e integración contra Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Levanta Postgres, la API de datos, autenticación y almacenamiento.
+      # Sin esto las pruebas no se saltan: fallan. Una prueba que se omite en
+      # silencio informa de un éxito que nadie comprobó.
+      - name: Levantar la pila local
+        run: supabase start
+
+      - name: Aplicar el historial de migraciones
+        run: supabase migration up
+
+      - name: Pruebas SQL de seguridad
+        run: npm run test:security
+
+      - name: Pruebas de concurrencia
+        run: npm run test:concurrency
+
+      - name: Pruebas de integración
+        run: npm run test:integration
+
+      - name: Detener la pila
+        if: always()
+        run: supabase stop --no-backup
+
+  recorrido:
+    name: Recorrido completo en modo demostración
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      # El recorrido en modo demostración no necesita ninguna clave: corre
+      # contra el repositorio en memoria. El recorrido contra Supabase real
+      # (`test:e2e:local`) **no** se ejecuta aquí, porque consume una llamada
+      # a Anthropic por ejecución y eso no se gasta en cada subida.
+      - run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

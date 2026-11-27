@@ -16,7 +16,19 @@
 # 3. Añadir tres cabeceras de seguridad que la aplicación no emite por sí misma.
 
 [build]
-  command = "npm run build"
+  # Las comprobaciones van **dentro** de la construcción, y ese es el punto:
+  # Netlify solo publica un despliegue si su construcción termina bien. Si los
+  # tipos, el estilo o las pruebas unitarias fallan, la construcción falla, no
+  # se publica nada y **la versión que está en pie se queda en pie**. Es la
+  # forma más simple de impedir que un despliegue defectuoso sustituya a uno
+  # estable, y no depende de ningún servicio aparte.
+  #
+  # Cuesta cerca de un minuto por construcción. Vale lo que cuesta.
+  #
+  # Lo que no cabe aquí: las pruebas SQL, de concurrencia y de integración
+  # necesitan Docker y una pila de Supabase, que el servidor de construcción de
+  # Netlify no tiene. Ésas corren en GitHub Actions (.github/workflows/ci.yml).
+  command = "npm run verify:ci && npm run build"
   publish = ".next"
 
 [build.environment]
