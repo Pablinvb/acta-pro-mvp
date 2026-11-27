@@ -44,14 +44,27 @@ const envSchema = z.object({
   /**
    * Cuánto se le concede a Anthropic antes de rendirse, en milisegundos.
    *
-   * Existe por una razón concreta: el servidor donde se despliega mata la
-   * función antes de que el SDK se rinda si su plazo es más largo que el de la
-   * plataforma, y entonces quien usa la aplicación recibe un error de pasarela
-   * en lugar del mensaje que la aplicación sí sabe dar. En Netlify el límite de
-   * una función sincrónica es de 60 segundos y **no es configurable**, así que
-   * el valor por defecto deja margen dentro de esa ventana.
+   * Existe porque el servidor donde se despliega mata la función antes de que
+   * el SDK se rinda si su plazo es más largo que el de la plataforma, y
+   * entonces quien usa la aplicación recibe un error de pasarela en lugar del
+   * mensaje que la aplicación sí sabe dar.
+   *
+   * **El límite real medido en este proyecto de Netlify es de 30 segundos**, no
+   * los 60 que documenta la tabla de valores por defecto: el registro de la
+   * función lo dice sin ambigüedad -`Duration: 30000 ms`- y por eso un plazo de
+   * 45 s no servía de nada. Los 24 s de aquí dejan margen para la sesión, las
+   * lecturas y la escritura posterior dentro de esa ventana.
    */
-  ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().positive().max(600_000).optional().default(45_000),
+  ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().positive().max(600_000).optional().default(24_000),
+  /**
+   * Tope de tokens de salida del borrador.
+   *
+   * No es solo coste: la latencia de la generación va casi en proporción a lo
+   * que se escribe, y el acta vive dentro del límite de ejecución de una
+   * función. Un tope más bajo es la diferencia entre un borrador que llega y
+   * una función que muere a medias.
+   */
+  ANTHROPIC_MAX_TOKENS: z.coerce.number().int().positive().max(64_000).optional().default(6_000),
 
   RESEND_API_KEY: nonEmpty,
   EMAIL_FROM: nonEmpty,

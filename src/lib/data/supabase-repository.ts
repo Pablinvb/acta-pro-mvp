@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sha256Hex } from "@/lib/pdf/render";
 
@@ -218,13 +220,33 @@ export class SupabaseRepository implements Repository {
     return { meeting, student, teacher, institution, representatives, participants };
   }
 
+  /**
+   * Crea la reunión en dos pasos, y no por gusto.
+   *
+   * Insertar con `.select()` pide a PostgREST un `INSERT ... RETURNING`, y el
+   * `RETURNING` tiene que pasar también por la política de lectura. Esa política
+   * llama a `acta_private.can_access_meeting(id)`, que es **`STABLE`** y
+   * consulta `public.meetings` por su cuenta: dentro de la misma sentencia no
+   * ve la fila que se está insertando, de modo que devuelve falso y la
+   * inserción entera se rechaza con «new row violates row-level security
+   * policy». La fila cumple la política; lo que no puede es verse a sí misma
+   * todavía.
+   *
+   * Por eso se genera el identificador aquí, se inserta sin devolver nada y se
+   * lee después: en una sentencia nueva la fila ya existe y la política la
+   * acepta. La alternativa sería reescribir la política de lectura para que
+   * mire las columnas de la fila en vez de volver a consultar la tabla, lo que
+   * exige una migración nueva sobre producción y es decisión de quien la
+   * administra.
+   */
   async createMeeting(input: NewMeetingInput) {
-    const result = await this.db
-      .from("meetings")
-      .insert({ ...input, status: "scheduled" })
-      .select("*")
-      .single();
-    return unwrap(result, "No se pudo crear la reunión") as Meeting;
+    const id = randomUUID();
+    const { error } = await this.db.from("meetings").insert({ ...input, id, status: "scheduled" });
+    if (error) throw new Error(`No se pudo crear la reunión: ${error.message}`);
+
+    const { data, error: lectura } = await this.db.from("meetings").select("*").eq("id", id).single();
+    if (lectura) throw new Error(`No se pudo leer la reunión recién creada: ${lectura.message}`);
+    return data as Meeting;
   }
 
   async updateMeeting(id: string, patch: Partial<Meeting>) {

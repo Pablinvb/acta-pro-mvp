@@ -203,6 +203,50 @@ de `audit_logs` —tabla sin referencias entrantes— delataba la debilidad.
 Ahora hay dos casos que miran el privilegio en sí. Una prueba que pasa por el
 motivo equivocado es peor que no tenerla, porque da tranquilidad sin darla.
 
+## 7 bis. Una política que no puede ver lo que acaba de escribirse
+
+La política de lectura de `meetings` llama a
+`acta_private.can_access_meeting(id)`, que es `STABLE` y **vuelve a consultar
+`public.meetings`** para decidir. Para una lectura normal es correcto. Dentro de
+un `INSERT ... RETURNING` no lo es: la función no ve la fila que se está
+insertando, devuelve falso, y PostgreSQL rechaza la operación entera con
+
+```
+new row violates row-level security policy for table "meetings"
+```
+
+La fila cumple la política. Lo que no puede es verse a sí misma todavía.
+
+Esto dejó **la creación de reuniones rota en producción**, porque el repositorio
+insertaba con `.select()`, que es como PostgREST pide un `RETURNING`. Se
+comprobó aislándolo de la aplicación: el mismo `INSERT` por SQL como
+`authenticated` pasa; por PostgREST sin `.select()` pasa; con `.select()` falla.
+
+La corrección aplicada vive en la aplicación: `createMeeting` genera el
+identificador, inserta sin devolver nada y lee la fila en una sentencia aparte,
+donde ya existe. No toca el esquema y no debilita nada.
+
+**La corrección de fondo está pendiente de decisión**, porque exige una
+migración nueva sobre producción: reescribir `meetings_read` para que mire las
+columnas de la fila en lugar de volver a consultar la tabla.
+
+```sql
+CREATE POLICY meetings_read ON public.meetings FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = auth.uid()
+      AND p.institution_id = meetings.institution_id
+      AND (p.id = meetings.teacher_id OR p.role = 'admin')
+  )
+);
+```
+
+Es equivalente en lo que concede y además más barata: un acceso a `profiles` en
+vez de una consulta sobre `meetings` por fila. Solo afecta a `meetings`: en el
+resto de las tablas, `can_access_meeting` mira la reunión **padre**, que ya
+existe cuando se inserta la hija, de modo que allí no hay problema.
+
 ## 8. Auditoría
 
 `audit_logs` no admite `UPDATE` ni `DELETE`. Su política de inserción exige que

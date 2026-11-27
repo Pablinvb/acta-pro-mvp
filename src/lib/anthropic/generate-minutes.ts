@@ -7,7 +7,6 @@ import { MINUTES_SYSTEM_PROMPT, buildMinutesUserMessage } from "@/lib/anthropic/
 import { MinutesSchema, findOrphanSourceIds, normalizeMinutes, type Minutes } from "@/lib/schemas/minutes";
 import type { MeetingDetail, TranscriptSegment } from "@/lib/types";
 
-const MAX_TOKENS = 6000;
 
 export interface GeneratedMinutes {
   minutes: Minutes;
@@ -15,6 +14,15 @@ export interface GeneratedMinutes {
 }
 
 function toApiError(error: unknown): ApiError {
+  // El tiempo de espera va **antes** que `APIError`, y no es una preferencia de
+  // estilo: `APIConnectionTimeoutError` hereda de `APIConnectionError`, que
+  // hereda de `APIError`. Con la comprobación general delante, todo plazo
+  // agotado caía en ella, salía con `status` indefinido y se informaba como
+  // «El servicio de IA rechazó la solicitud» -que es decirle a quien usa la
+  // aplicación que mire la clave cuando lo que pasó fue que no dio tiempo-.
+  if (error instanceof Anthropic.APIConnectionTimeoutError) {
+    return new ApiError(504, "La generación del borrador superó el tiempo de espera. Vuelva a intentarlo.");
+  }
   if (error instanceof Anthropic.APIError) {
     if (error.status === 429) {
       return new ApiError(429, "El servicio de IA está saturado. Espere unos segundos y vuelva a intentarlo.");
@@ -34,9 +42,6 @@ function toApiError(error: unknown): ApiError {
       return new ApiError(502, "El servicio de IA no respondió. Vuelva a intentarlo.");
     }
     return new ApiError(502, "El servicio de IA rechazó la solicitud.");
-  }
-  if (error instanceof Anthropic.APIConnectionTimeoutError) {
-    return new ApiError(504, "La generación del borrador superó el tiempo de espera. Vuelva a intentarlo.");
   }
   if (error instanceof ApiError) return error;
   return new ApiError(502, "No se pudo generar el borrador del acta.");
@@ -79,9 +84,20 @@ export async function generateMinutesWithAnthropic(
   try {
     const message = await client.messages.parse({
       model,
-      max_tokens: MAX_TOKENS,
+      max_tokens: env.ANTHROPIC_MAX_TOKENS,
       system: MINUTES_SYSTEM_PROMPT,
       messages: [{ role: "user", content: buildMinutesUserMessage(detail, segments, speakerNames) }],
+      // El razonamiento extendido viene activado por defecto en estos modelos y
+      // es lo que hacía que el borrador tardara casi un minuto: los tokens de
+      // pensamiento salen del mismo presupuesto y del mismo reloj. Aquí no hace
+      // falta. Lo que se pide es redactar a partir de una transcripción con un
+      // esquema fijo, y el acta la revisa y aprueba una persona: el modelo no
+      // tiene que deliberar, tiene que transcribir a estructura.
+      //
+      // Desactivarlo no deja al modelo sin criterio: la salida sigue
+      // restringida por el esquema, y si se saliera de la transcripción, la
+      // comprobación de identificadores huérfanos lo rechaza igual.
+      thinking: { type: "disabled" },
       output_config: { format: zodOutputFormat(MinutesSchema) },
     });
 

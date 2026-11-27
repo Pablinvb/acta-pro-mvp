@@ -138,7 +138,7 @@ Cifras de la documentación de Netlify, no estimadas:
 
 | Límite | Valor | Configurable |
 | --- | --- | --- |
-| Función sincrónica | **60 s** | **No** |
+| Función sincrónica | **30 s medidos** (la documentación dice 60) | **No** |
 | Función programada | 30 s | No |
 | Función en segundo plano | 15 min | No |
 | Cuerpo de petición y respuesta | **6 MB** | No |
@@ -150,16 +150,26 @@ subir un archivo es de unos **4,5 MB**.
 
 Dos sitios de esta aplicación tocan esos límites, y los dos están resueltos:
 
-**Generación del acta con Anthropic.** La ruta declara `maxDuration = 120`, que
-en Netlify **no se concede**: la función muere a los 60 s. Peor aún, el SDK tenía
-un plazo propio de 90 s y un reintento, de modo que la plataforma siempre ganaba
-la carrera y quien usara la aplicación recibía un error de pasarela sin
-explicación. Ahora el plazo se fija con `ANTHROPIC_TIMEOUT_MS` —45 s por
-defecto, un único intento—, de manera que el que se rinde primero es el SDK y la
-aplicación puede dar un mensaje legible. Si una transcripción muy larga no cabe
-en ese plazo, la salida compatible con el plan gratuito es mover la generación a
-una **función en segundo plano** (15 min) y que la interfaz consulte el
-resultado; es un cambio de arquitectura y no se ha hecho.
+**Generación del acta con Anthropic.** Es el punto donde más apretaba, y costó
+dos vueltas acertar. Detalle completo en §5 ter; en resumen:
+
+- El límite real **no son 60 s sino 30**. Lo dice el registro de la función sin
+  ambigüedad: `Duration: 30000 ms`, clavado. La tabla de valores por defecto de
+  Netlify documenta 60 y en este proyecto no se cumplen.
+- La causa de fondo no era el plazo sino el **razonamiento extendido**, que estos
+  modelos traen activado por defecto. Una transcripción de 229 palabras tardaba
+  **49 s**. Desactivarlo la deja en **18 s**, y una reunión realista de 22
+  minutos y 2080 palabras, en **21,7 s**.
+- `ANTHROPIC_TIMEOUT_MS` vale ahora **24 s**, por debajo de los 30 de la
+  plataforma, de modo que el que se rinde primero es el SDK y la aplicación
+  responde «superó el tiempo de espera» en vez de morir con un 502 de pasarela.
+
+Queda un margen estrecho y conviene saberlo: una reunión bastante más larga que
+22 minutos puede no caber en 24 s. En ese caso la respuesta es un error legible y
+reintentable, no una caída. La salida compatible con el plan gratuito, si llega a
+hacer falta, es mover la generación a una **función en segundo plano** (15 min)
+con la interfaz consultando el resultado; es un cambio de arquitectura y no se ha
+hecho.
 
 **Recuperación de la transcripción desde el audio.** El camino normal no manda
 audio a ningún servidor propio: el navegador habla con Deepgram directamente con
@@ -416,11 +426,86 @@ repositorio, con datos de verdad, y comprueban que el estudiante incrustado
 llega. Si una migración futura añade otro camino entre dos tablas incrustadas,
 falla ahí y no en producción.
 
+## 5 ter. «No se pudo generar el borrador»: tres fallos, no uno
+
+Al pulsar «Generar borrador con IA» en la aplicación desplegada, la respuesta no
+venía de la aplicación:
+
+```
+HTTP 502   {"errorType":"Error","errorMessage":"An unknown error has occurred"}
+```
+
+Ese es el sobre de error de la propia plataforma, no el de ACTA PRO. La
+aplicación nunca llegó a responder. El registro de la función dijo por qué:
+
+```
+Duration: 30000 ms      Memory Usage: 212 MB
+```
+
+Exactamente 30.000 ms: un corte, no un fallo. Detrás había tres problemas
+distintos, y hacía falta arreglar los tres.
+
+### Primero: el límite real es de 30 s, no de 60
+
+La documentación de Netlify da 60 s como límite de una función sincrónica. **En
+este proyecto son 30**, medidos. Por eso el plazo de 45 s que se había puesto
+antes no servía de nada: la plataforma mataba la función mucho antes de que el
+SDK se rindiera, y lo que llegaba al navegador era un error de pasarela sin
+explicación posible —cuando la función muere, no queda nadie para registrar nada—.
+
+`ANTHROPIC_TIMEOUT_MS` vale ahora **24 s**, con margen para la sesión, las
+lecturas y la escritura posterior dentro de la ventana de 30.
+
+### Segundo: el razonamiento extendido estaba haciendo el trabajo lento
+
+Bajar el plazo solo convierte una caída en un mensaje; no hace que el acta se
+genere. La causa real es que estos modelos traen el **razonamiento extendido
+activado por defecto**, y sus tokens salen del mismo presupuesto y del mismo
+reloj. Medido con el guion
+[`scripts/diagnose-generation.ts`](../scripts/diagnose-generation.ts), que
+cronometra la generación donde nada la interrumpe:
+
+| Configuración | Transcripción | Resultado |
+| --- | --- | --- |
+| Por defecto, tope 6000 | 229 palabras | **49,0 s** |
+| Por defecto, tope 2000 | 229 palabras | **falla a los 22 s**: agota los tokens pensando |
+| **Sin razonamiento, tope 6000** | 229 palabras | **18,1 s** |
+| **Sin razonamiento, tope 6000** | 2080 palabras · 22 min | **21,7 s** |
+
+Aquí no hace falta deliberar. Lo que se pide es redactar a partir de una
+transcripción con un esquema fijo, y el acta la revisa y aprueba una persona.
+Desactivarlo no deja al modelo sin control: la salida sigue restringida por el
+esquema y la comprobación de identificadores huérfanos sigue rechazando
+cualquier cita que no esté en la transcripción.
+
+### Tercero: el mensaje de error mentía
+
+```ts
+if (error instanceof Anthropic.APIError) { ... }
+if (error instanceof Anthropic.APIConnectionTimeoutError) { ... }  // inalcanzable
+```
+
+`APIConnectionTimeoutError` **hereda** de `APIError`, de modo que la primera
+comprobación atrapaba también los plazos agotados y salía por su rama genérica:
+«El servicio de IA rechazó la solicitud». Es decirle a quien usa la aplicación
+que revise la clave cuando lo que pasó fue que no dio tiempo. La comprobación
+del plazo va ahora delante, y un plazo agotado responde **504 «La generación del
+borrador superó el tiempo de espera»**.
+
+### Lo que no estaba roto
+
+Conviene decirlo porque se comprobó una por una: la clave de Anthropic es
+válida, el modelo configurado existe, **hay saldo** —una llamada mínima responde
+en 0,8 s—, la salida estructurada funciona, el JSON valida contra el esquema, y
+un fallo de generación **no bloquea la reunión**: el cambio a `draft` ocurre
+después de crear el acta, de modo que la reunión se queda en `processing` y se
+puede reintentar. Se verificó reintentando.
+
 ## 6. Límites conocidos de esta versión en producción
 
 | Límite | Efecto | Cuándo importa |
 | --- | --- | --- |
-| Función de 60 s en Netlify, no ampliable | Una transcripción muy larga puede no dar tiempo a generar el acta. El plazo del SDK se bajó a 45 s para que el mensaje de error sea legible | Reuniones largas; detalle y salida en §4.2 |
+| Función de **30 s** en Netlify, no ampliable | Una reunión bastante más larga que 22 minutos puede no dar tiempo a generar el acta. El plazo del SDK está en 24 s para que el error sea legible y reintentable | Reuniones largas; detalle y medidas en §5 ter |
 | Cuerpo de 6 MB, unos 4,5 MB en binario | La recuperación del acta desde el audio solo sirve para grabaciones de unos cuatro minutos | Solo en el plan B, cuando la transcripción en vivo no deja texto |
 | Límite de tasa en memoria, por instancia | Con varias instancias el tope efectivo se multiplica | Antes de abrir la herramienta a toda una institución |
 | Sin Content Security Policy con nonces | Menos defensa en profundidad ante XSS | Endurecimiento previo a uso institucional |

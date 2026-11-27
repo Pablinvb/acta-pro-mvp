@@ -52,12 +52,13 @@ exactamente el problema que tenían las pruebas smoke antes de esta fase.
 | `npm test` (Vitest, unitarias) | **154 / 154** en 18 archivos |
 | `npm run test:security` (SQL) | **132 / 132** en 5 archivos |
 | `npm run test:concurrency` (dos conexiones) | **18 / 18** |
-| `npm run test:integration` (Supabase local real) | **39 / 39** en 4 archivos |
+| `npm run test:integration` (Supabase local real) | **40 / 40** en 4 archivos |
 | `npm run verify:clean-install` (pila desechable) | **16 / 16** |
 | `scripts/verify-restore.mjs` (restauración sobre Supabase nuevo) | **9 / 9** |
 | `vitest -c vitest.remote.config.mts` (proyecto remoto real) | **16 / 16**, residuo cero |
 | `npm run build` | Compilado correctamente |
-| `npx playwright test` (E2E) | **1 / 1** |
+| `npm run test:e2e` (E2E, modo demostración) | **1 / 1** |
+| `npm run test:e2e:local` (recorrido completo, Supabase local + Anthropic real) | **1 / 1**, quince pasos |
 | `npm audit` | **0 vulnerabilidades** |
 | `npm audit --omit=dev` | **0 vulnerabilidades** |
 | `supabase db lint` | Sin errores de esquema |
@@ -65,8 +66,9 @@ exactamente el problema que tenían las pruebas smoke antes de esta fase.
 | `supabase db lint --remote` | Sin errores de esquema |
 | `supabase db diff --remote` | **Sin diferencias** entre las 9 migraciones y el proyecto remoto |
 
-**Total: 378 comprobaciones automatizadas**, 25 de ellas sobre el proyecto
-remoto real.
+**Total: 386 comprobaciones automatizadas**, 25 de ellas sobre el proyecto
+remoto real y quince pasos de recorrido funcional contra Supabase local con
+Anthropic de verdad.
 
 ## 3. Cobertura SQL por archivo
 
@@ -226,6 +228,43 @@ Separa dos preguntas que se confunden con facilidad:
 La segunda superficie es más estrecha que la primera. `TRUNCATE` no tiene forma
 de expresarse en PostgREST, y eso **no lo hacía inofensivo**: la primera
 pregunta seguía respondiendo que sí, y `TRUNCATE` no pasa por RLS.
+
+## 6 quater. El recorrido funcional contra Supabase local y Anthropic real
+
+[`tests/e2e-local/journey.spec.ts`](../tests/e2e-local/journey.spec.ts), con
+[`playwright.local.config.ts`](../playwright.local.config.ts).
+
+```bash
+npm run test:e2e:local
+```
+
+El recorrido de `tests/e2e/happy-path.spec.ts` corre en **modo demostración**,
+contra un repositorio en memoria: prueba la interfaz, no la integración. Por eso
+pasaba mientras la aplicación desplegada estaba rota. Este recorre los mismos
+pasos contra Postgres, el bucket y el modelo **de verdad**, y levanta su propia
+institución ficticia, que retira al terminar.
+
+Quince pasos: acceso · creación de la reunión · participantes · consentimiento ·
+incorporación de la transcripción · **generación real del borrador con IA** ·
+edición del acta · aprobación · firma · PDF · idempotencia al repetir ·
+descarga con cotejo de `SHA-256` · repositorio · seguimiento · cierre de sesión.
+
+Tres cosas que conviene decir de él:
+
+- **Comprueba que el acta la escribió el modelo**, no el generador
+  determinístico: lee `generator` en la base y exige `anthropic`. Un recorrido
+  que pasara con el borrador de demostración no probaría la integración.
+- **Un paso no pasa por la interfaz**: la transcripción se siembra en la base.
+  El navegador no puede hablar por un micrófono, y el botón de transcripción de
+  demostración está desactivado a propósito con `DEMO_MODE=false`. Queda dicho
+  en el propio archivo en lugar de disimularlo.
+- **Consume una llamada real a Anthropic** por ejecución, de modo que no es una
+  prueba para ejecutar en bucle.
+
+Encontró dos fallos que ninguna otra prueba veía, y los dos estaban **vivos en
+producción**: la generación del borrador (§5 ter de
+[`DEPLOY.md`](DEPLOY.md)) y la creación de reuniones (§7 bis de
+[`SECURITY_HARDENING.md`](SECURITY_HARDENING.md)).
 
 ## 6 ter. Las consultas con tablas incrustadas, y el fallo que llegó a producción
 

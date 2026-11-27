@@ -141,6 +141,32 @@ describe("consultas con tablas incrustadas contra Supabase local", () => {
     expect(filas.some((fila) => fila.id === representante)).toBe(true);
   });
 
+  it("una docente puede crear una reunión y recibirla de vuelta", async () => {
+    // Esto se rompió en producción y ninguna prueba lo vio. La política de
+    // lectura de `meetings` llama a `can_access_meeting(id)`, que es `STABLE` y
+    // vuelve a consultar la tabla: dentro de un `INSERT ... RETURNING` no ve la
+    // fila que se está insertando, de modo que la inserción entera se rechazaba
+    // con «new row violates row-level security policy».
+    const creada = await repository.createMeeting({
+      institution_id: ids.institution,
+      teacher_id: fixture.teacherId,
+      student_id: ids.student,
+      title: "Reunión creada por la docente",
+      reason: null,
+      scheduled_at: new Date("2026-12-01T14:30:00.000Z").toISOString(),
+      source: "manual",
+    });
+
+    expect(creada.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(creada.title).toBe("Reunión creada por la docente");
+    expect(creada.status).toBe("scheduled");
+    expect(creada.institution_id).toBe(ids.institution);
+
+    // Y existe de verdad, no solo en el valor devuelto.
+    const { data } = await admin.from("meetings").select("id").eq("id", creada.id).maybeSingle();
+    expect(data).not.toBeNull();
+  });
+
   it("ninguna consulta del repositorio queda con una relación ambigua", async () => {
     // La red de seguridad general: si una migración futura añade otro camino
     // entre dos tablas que alguna consulta incrusta, esto falla aquí y no en

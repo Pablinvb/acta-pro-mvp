@@ -90,14 +90,14 @@ describe("valores por defecto", () => {
     expect(env.ANTHROPIC_MODEL).toBe("claude-sonnet-5");
   });
 
-  it("el plazo de Anthropic cabe dentro del límite de 60 s de una función", () => {
+  it("el plazo de Anthropic cabe dentro del limite real de 30 s de la funcion", () => {
     const env = getEnv();
 
     // No es una preferencia estética: si el plazo del SDK excede el de la
     // plataforma, la función muere antes de que el SDK se rinda y quien usa la
     // aplicación recibe un error de pasarela en vez de un mensaje legible.
-    expect(env.ANTHROPIC_TIMEOUT_MS).toBe(45_000);
-    expect(env.ANTHROPIC_TIMEOUT_MS).toBeLessThan(60_000);
+    expect(env.ANTHROPIC_TIMEOUT_MS).toBe(24_000);
+    expect(env.ANTHROPIC_TIMEOUT_MS).toBeLessThan(30_000);
   });
 
   it("se puede ampliar el plazo donde la plataforma lo permita", () => {

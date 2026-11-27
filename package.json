@@ -21,7 +21,8 @@
     "verify:clean-install": "node scripts/verify-clean-install.mjs",
     "verify:restore": "node scripts/verify-restore.mjs",
     "verify:remote": "vitest run --config vitest.remote.config.mts",
-    "verify:deployment": "node scripts/verify-deployment.mjs"
+    "verify:deployment": "node scripts/verify-deployment.mjs",
+    "test:e2e:local": "playwright test --config playwright.local.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
