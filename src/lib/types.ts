@@ -126,7 +126,33 @@ export interface Signature {
   signature_path: string;
   signed_at: string;
   acceptance_text_version: string;
+  /**
+   * Sesión verificada que capturó la firma, de `auth.uid()`.
+   *
+   * No es necesariamente quien firma: en una reunión presencial, la firma del
+   * representante se dibuja en el dispositivo de la docente. Lo que este campo
+   * registra es quién operaba la sesión, que es un dato distinto y que antes se
+   * perdía. Las firmas anteriores a la migración `20261127040000` lo tienen a
+   * `null`, y eso es correcto: no se sabe.
+   */
+  signed_by: string | null;
+  /** Cómo se verificó a quien firma. */
+  verification_method: SignatureVerificationMethod;
 }
+
+/**
+ * Formas de verificar a quien firma, de menos a más fuerte.
+ *
+ * Que el acta pueda declarar **cuál** se usó es más útil para una institución
+ * que fingir que todas las firmas se verificaron igual.
+ */
+export type SignatureVerificationMethod =
+  /** Capturada con la docente presente, sin verificar la identidad de quien firma. */
+  | "presencial_atestiguada"
+  /** La firma del personal docente, atada a su cuenta autenticada. */
+  | "sesion_verificada"
+  /** Verificada con un código de un solo uso. Reservado: todavía sin implementar. */
+  | "codigo_correo";
 
 export type DocumentKind = "preview" | "final";
 

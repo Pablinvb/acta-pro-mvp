@@ -55,6 +55,8 @@ const signatures: Signature[] = [
     signature_path: "data:image/png;base64,AAAA",
     signed_at: "2026-11-21T16:00:00.000Z",
     acceptance_text_version: "v1",
+    signed_by: null,
+    verification_method: "sesion_verificada",
   },
   {
     id: "signature-representative",
@@ -64,6 +66,8 @@ const signatures: Signature[] = [
     signature_path: "data:image/png;base64,BBBB",
     signed_at: "2026-11-21T16:05:00.000Z",
     acceptance_text_version: "v1",
+    signed_by: null,
+    verification_method: "presencial_atestiguada",
   },
 ];
 

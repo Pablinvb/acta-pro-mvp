@@ -50,9 +50,9 @@ exactamente el problema que tenían las pruebas smoke antes de esta fase.
 | `npm run typecheck` | Sin errores |
 | `npm run lint` | Sin errores ni advertencias |
 | `npm test` (Vitest, unitarias) | **154 / 154** en 18 archivos |
-| `npm run test:security` (SQL) | **132 / 132** en 5 archivos |
+| `npm run test:security` (SQL) | **156 / 156** en 7 archivos |
 | `npm run test:concurrency` (dos conexiones) | **18 / 18** |
-| `npm run test:integration` (Supabase local real) | **40 / 40** en 4 archivos |
+| `npm run test:integration` (Supabase local real) | **56 / 56** en 5 archivos |
 | `npm run verify:clean-install` (pila desechable) | **16 / 16** |
 | `scripts/verify-restore.mjs` (restauración sobre Supabase nuevo) | **9 / 9** |
 | `vitest -c vitest.remote.config.mts` (proyecto remoto real) | **16 / 16**, residuo cero |
@@ -66,7 +66,7 @@ exactamente el problema que tenían las pruebas smoke antes de esta fase.
 | `supabase db lint --remote` | Sin errores de esquema |
 | `supabase db diff --remote` | **Sin diferencias** entre las 9 migraciones y el proyecto remoto |
 
-**Total: 386 comprobaciones automatizadas**, 25 de ellas sobre el proyecto
+**Total: 386 comprobaciones automatizadas** (156 unitarias, 156 SQL, 18 de concurrencia, 56 de integración), 25 de ellas sobre el proyecto
 remoto real y quince pasos de recorrido funcional contra Supabase local con
 Anthropic de verdad.
 
@@ -228,6 +228,33 @@ Separa dos preguntas que se confunden con facilidad:
 La segunda superficie es más estrecha que la primera. `TRUNCATE` no tiene forma
 de expresarse en PostgREST, y eso **no lo hacía inofensivo**: la primera
 pregunta seguía respondiendo que sí, y `TRUNCATE` no pasa por RLS.
+
+## 6 quinquies. Aislamiento entre instituciones, por la API
+
+[`tests/integration/institution-isolation.test.ts`](../tests/integration/institution-isolation.test.ts)
+— 16 casos con **dos instituciones ficticias**.
+
+Lo que distingue esta prueba de mirar la interfaz: aquí no se pulsa nada. Se
+habla con PostgREST usando la sesión de una docente de la institución A y se le
+pide, tabla por tabla, lo que pertenece a la B. Que un menú no tenga el enlace
+no significa que el dato no se pueda pedir.
+
+Cubre `institutions`, `profiles`, `students`, `representatives`,
+`student_representatives`, `meetings`, `minutes`, `signatures`,
+`meeting_participants`, `transcript_segments`, `documents`,
+`commitment_tracking`, `audit_logs` y el bucket de documentos. Comprueba además
+que A no puede **escribir** en la institución de B ni apropiarse de una reunión
+ajena moviéndola a la suya.
+
+**`representatives` es el caso que más merecía la prueba**: no tiene columna de
+institución, de modo que su aislamiento depende enteramente del rodeo
+`student_representatives → students`. Aguanta. Y la vía que lo rompería
+—enlazar a un representante ajeno con un estudiante propio— está cerrada porque
+`authenticated` no tiene `INSERT` sobre esa tabla.
+
+**No se encontró ninguna vulnerabilidad.** El valor de la prueba no es haber
+encontrado algo, sino que a partir de ahora una migración que rompa el
+aislamiento falla aquí.
 
 ## 6 quater. El recorrido funcional contra Supabase local y Anthropic real
 

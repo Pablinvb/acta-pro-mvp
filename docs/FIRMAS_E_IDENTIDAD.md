@@ -64,23 +64,39 @@ siga rotulada en el propio PDF.
 
 ## 3. Mecanismo propuesto
 
-### 3.1 Docentes — atar la firma a la sesión verificada
+### 3.1 Docentes — atar la firma a la sesión verificada · **IMPLEMENTADO**
 
 Es lo que mejor relación tiene entre esfuerzo y resultado, y **no necesita
 ningún servicio nuevo**: el personal docente ya se autentica con Supabase Auth.
 
-La propuesta es añadir a `signatures` la identidad de la sesión que firmó:
+Aplicado en la migración `20261127040000` (solo en local; la remota queda
+pendiente de autorización):
 
 ```sql
 ALTER TABLE public.signatures
-  ADD COLUMN signed_by uuid REFERENCES public.profiles(id),
-  ADD COLUMN signed_ip_hash text;
+    ADD COLUMN signed_by uuid REFERENCES public.profiles(id),
+    ADD COLUMN verification_method text NOT NULL
+        DEFAULT 'presencial_atestiguada';
 ```
 
-y que `sign_minutes` lo rellene con `auth.uid()` —no con un valor que mande el
-navegador—, dejándolo inmutable como el resto. Con eso, la firma del rol
-`teacher` pasa de «alguien escribió este nombre» a «la sesión verificada de
-esta persona firmó esta versión del acta a esta hora».
+`sign_minutes` los rellena desde `auth.uid()` —nunca desde algo que mande el
+navegador— y la firma del rol `teacher` queda marcada `sesion_verificada`
+**solo si quien opera la sesión es la docente que convoca la reunión**; en
+cualquier otro caso queda `presencial_atestiguada`. La auditoría de
+`minutes.signed` registra además el método de cada firma.
+
+Con eso, la firma del rol `teacher` pasa de «alguien escribió este nombre» a
+«la sesión verificada de esta persona firmó esta versión del acta a esta hora».
+
+Las firmas anteriores a la migración se quedan con el valor por defecto, que es
+el correcto: se capturaron así. No se reescribe el pasado para que encaje con la
+regla nueva.
+
+Comprobado en `supabase/tests/security/0007_signature_identity.sql`, 12 casos.
+Dos de ellos intentan modificar los valores **con los privilegios del dueño de
+la tabla**, no solo desde la Data API: si se probara solo desde ahí, la negativa
+vendría de que `authenticated` no tiene `UPDATE`, y eso no demostraría nada
+sobre el disparador.
 
 Del lado de la interfaz, conviene además una **reautenticación en el momento de
 firmar** cuando la sesión lleva abierta más de un rato: firmar no debería ser
@@ -170,7 +186,16 @@ Decisiones que no me corresponden:
 4. **¿Se aceptan firmas presenciales atestiguadas** en el piloto, marcadas como
    tales?
 
-Mientras 1 y 2 no se decidan, lo implementable sin preguntar es §3.1 —atar la
+Mientras 1 y 2 no se decidan, lo implementable sin preguntar era §3.1 —atar la
 firma del personal docente a su sesión verificada— y el campo
 `verification_method`, que no cambia lo que la aplicación hace pero sí lo que
-el acta es capaz de declarar.
+el acta es capaz de declarar. **Las dos cosas están hechas** y probadas en
+local; la migración remota espera autorización.
+
+Lo que queda, por orden de valor:
+
+1. **Mostrar el método de verificación en el PDF y en la pantalla de firmas.**
+   Hoy el dato se registra pero no se enseña, y un dato que no se ve no informa
+   a nadie. Es trabajo de interfaz, sin decisiones pendientes.
+2. **Reautenticación al firmar** cuando la sesión lleva mucho abierta.
+3. **El código de un solo uso**, cuando se decida el emisor de correo.

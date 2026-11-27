@@ -345,6 +345,11 @@ export class DemoRepository implements Repository {
       signature_path: input.signature_path,
       signed_at: now(),
       acceptance_text_version: input.acceptance_text_version,
+      // El modo demostración no tiene sesión verificada que registrar, y
+      // fingir una sería peor que dejarlo en nulo: refleja exactamente lo que
+      // sabe, que es nada.
+      signed_by: null,
+      verification_method: "presencial_atestiguada",
     };
     store.signatures.push(signature);
     return signature;
@@ -411,6 +416,8 @@ export class DemoRepository implements Repository {
         signature_path: signature.signature_path,
         signed_at: now(),
         acceptance_text_version: input.acceptance_text_version,
+        signed_by: null,
+        verification_method: "presencial_atestiguada",
       });
     }
 
