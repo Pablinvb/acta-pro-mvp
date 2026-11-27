@@ -45,6 +45,8 @@ Abra <http://localhost:3000> y use las credenciales de demostración que aparece
 
 ## Arquitectura del MVP
 
+**Captura y transcripción.** El MVP captura el audio desde el navegador y utiliza Deepgram para transcribirlo. La arquitectura objetivo contempla **PLAUD** como dispositivo opcional de grabación. Su conexión directa con Acta Pro está pendiente de confirmación.
+
 ```mermaid
 flowchart TD
     N["Navegador del docente"] -->|"Reuniones y revisión"| A["Acta Pro · Next.js"]
